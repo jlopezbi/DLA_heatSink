@@ -64,7 +64,7 @@ def branchingDLA_MAIN():
     rNodes = [rs.AddPoint(nodes[0].posVec)]
     speed = .8 #rhino units per iteration
     sRange = [.5,1.5]
-    nThrows = 100
+    nThrows = 300
     boundRadius = (sRange[0]+sRange[1])*2
     bGeom = rs.AddCircle([0,0,0],boundRadius)
     sFactor = .5
