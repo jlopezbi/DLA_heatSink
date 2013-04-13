@@ -53,10 +53,11 @@ def meshDLA_MAIN():
 	z = boundBox[4].Z
 
 	radius = .05
-	nParticles =20
+	nParticles =40
 	timeSteps = 1000
 	growLength = .001
 	feedLength = .01
+
 	for i in range(nParticles):
 		#x = random.uniform(xMin,xMax)
 		#y = random.uniform(yMin,yMax)
@@ -129,29 +130,45 @@ def checkVertNeighborEdges(objRef, mesh,idx,lengthRange):
 	for neighVertIdx in connectedVertsIdx:
 		if(neighVertIdx !=idx):
 
-			tCenterVertIdx = mesh.TopologyVertices.TopologyVertexIndex(idx)
+			if(idx >= mesh.Vertices.Count):
+				print "num Vertices: " + str(mesh.Vertices.Count)
+				print "vertIdx problematic: " + str(idx)
+
+			if(idx >= mesh.TopologyVertices.Count or idx<0):
+				rs.AddTextDot("pCv",mesh.Vertices[idx])
+				tCenterVertIdx = 2
+			else:
+				tCenterVertIdx = mesh.TopologyVertices.TopologyVertexIndex(idx)
 			tCenterVert = mesh.TopologyVertices[tCenterVertIdx]
 
-			tNeighVertIdx = mesh.TopologyVertices.TopologyVertexIndex(neighVertIdx)
+			if(neighVertIdx >= mesh.TopologyVertices.Count or neighVertIdx < 0):
+				rs.AddTextDot("pNv",mesh.Vertices[neighVertIdx])
+				tNeighVertIdx = 2
+			else:
+				tNeighVertIdx = mesh.TopologyVertices.TopologyVertexIndex(neighVertIdx)
 			tNeighVert = mesh.TopologyVertices[tNeighVertIdx]
 			#rs.AddSphere(tNeighVert,r)
 			dist = rs.Distance(tCenterVert,tNeighVert)
 			strDist = "%.2f" % dist
+
 			if(dist >= maxLength):
 
 				foundEdgeIdx = mesh.TopologyEdges.GetEdgeIndex(tCenterVertIdx,tNeighVertIdx)
 				mesh.TopologyEdges.SplitEdge(foundEdgeIdx,.5)
 
-			elif (dist<=minLength):
+	scriptcontext.doc.Objects.Replace(objRef,mesh)
 
-				foundEdgeIdx = mesh.TopologyEdges.GetEdgeIndex(tCenterVertIdx,tNeighVertIdx)
-				mesh.TopologyEdges.CollapseEdge(foundEdgeIdx)
+#def collapseSmallEdges():
+
+			#elif (dist<=minLength):
+
+				#foundEdgeIdx = mesh.TopologyEdges.GetEdgeIndex(tCenterVertIdx,tNeighVertIdx)
+				#mesh.TopologyEdges.CollapseEdge(foundEdgeIdx)
 				#print "FuseEdge dist: " + strDist
 				#rs.AddTextDot(strDist,tNeighVert)
 
 			# foundEdge = mesh.TopologyEdges.GetEdgeIndex(tCenterVertIdx,tNeighVertIdx)
 			# mesh.TopologyEdges.SplitEdge(foundEdge,.5)
-	scriptcontext.doc.Objects.Replace(objRef,mesh)
 
 
 def displayFeedNormals(mesh,feedLength):
@@ -213,7 +230,7 @@ class Particle:
 				stickIdx = i
 				return stickIdx
 		return stickIdx
-				
+
 
 
 	def drawParticle(self,i):
