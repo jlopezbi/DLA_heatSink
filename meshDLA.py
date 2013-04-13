@@ -48,7 +48,7 @@ def meshDLA_MAIN():
 	z = boundBox[4].Z
 
 	radius = .2
-	nParticles = 7
+	nParticles = 20
 	for i in range(nParticles):
 		#x = random.uniform(xMin,xMax)
 		#y = random.uniform(yMin,yMax)
@@ -76,7 +76,7 @@ def meshDLA_MAIN():
 			if stickIdx >=0:
 				#rs.AddSphere(p.posVec,p.radius)
 				growVertice(objRef,mesh,stickIdx,p.posVec)
-				checkVertNeighborEdges(mesh,stickIdx,[.1,.7])
+				checkVertNeighborEdges(objRef,mesh,stickIdx,[.1,.7])
 				p.setToSpawnLoc(xRange,yRange,z)				
 			p.clearParticle()
 			p.drawParticle(i)
@@ -86,7 +86,7 @@ def growVertice(objRef, mesh,idx,foodVec):
 	vert = mesh.Vertices[idx]
 	newLoc = rs.VectorSubtract(vert,foodVec)
 	mesh.Vertices.SetVertex(idx,foodVec.X,foodVec.Y,foodVec.Z)
-	guid = scriptcontext.doc.Objects.AddMesh(mesh)
+	scriptcontext.doc.Objects.Replace(objRef, mesh)
 	#print type(scriptcontext.doc.Objects)
 	#scriptcontext.doc.Views.Redraw()
 	# if scriptcontext.doc.Objects.AddMesh(mesh)!=System.Guid.Empty:
@@ -94,7 +94,7 @@ def growVertice(objRef, mesh,idx,foodVec):
 	# 	return Rhino.Commands.Result.Success
 	# return Rhino.Commands.Result.Failure
 
-def checkVertNeighborEdges(mesh,idx,lengthRange):
+def checkVertNeighborEdges(objRef, mesh,idx,lengthRange):
 
 	minLength = lengthRange[0]
 	maxLength = lengthRange[1]
@@ -132,7 +132,8 @@ def checkVertNeighborEdges(mesh,idx,lengthRange):
 
 			if dist >= maxLength:
 				mesh.TopologyEdges.SplitEdge(edgeIdx,0.5)
-				guid = scriptcontext.doc.Objects.AddMesh(mesh)
+				scriptcontext.doc.Objects.Replace(objRef, mesh)
+				#scriptcontext.doc.Objects.AddMesh(mesh)
 				#rs.TextObjectStyle(textDot,Italic)
 				print("long edge: %.2f" %dist)
 				#find that edge subdivide it
