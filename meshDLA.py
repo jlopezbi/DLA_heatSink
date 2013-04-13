@@ -16,6 +16,7 @@ def meshDLA_MAIN():
 	print "BEGIN_________________________"
 	print "type objRef: " + str(type(objRef))
 	mesh  = objRef.Mesh()
+	mesh.Compact()
 	if not mesh: return
 
 	# seedMeshID = scriptcontext.doc.Objects.Find(objRef.ObjectId)
@@ -47,8 +48,8 @@ def meshDLA_MAIN():
 	yRange = [boundBox[0].Y,boundBox[2].Y]
 	z = boundBox[4].Z
 
-	radius = .2
-	nParticles = 20
+	radius = .1
+	nParticles =10
 	for i in range(nParticles):
 		#x = random.uniform(xMin,xMax)
 		#y = random.uniform(yMin,yMax)
@@ -70,14 +71,16 @@ def meshDLA_MAIN():
 			#print "particle#: " + str(i)
 			p = particles[i]
 			p.moveParticle(speed = .08)
+
 			if not p.inBounds(boxID):
 				p.setToSpawnLoc(xRange,yRange,z)
+
 			stickIdx = p.didStick(mesh,nVerts)
 			if stickIdx >=0:
-				#rs.AddSphere(p.posVec,p.radius)
 				growVertice(objRef,mesh,stickIdx,p.posVec)
-				checkVertNeighborEdges(objRef,mesh,stickIdx,[.1,.7])
-				p.setToSpawnLoc(xRange,yRange,z)				
+				checkVertNeighborEdges(objRef,mesh,stickIdx,[.05,.17])
+				p.setToSpawnLoc(xRange,yRange,z)
+						
 			p.clearParticle()
 			p.drawParticle(i)
 
@@ -95,57 +98,33 @@ def growVertice(objRef, mesh,idx,foodVec):
 	# return Rhino.Commands.Result.Failure
 
 def checkVertNeighborEdges(objRef, mesh,idx,lengthRange):
-
 	minLength = lengthRange[0]
 	maxLength = lengthRange[1]
 
 	vert = mesh.Vertices[idx]
 	#rs.AddTextDot("v",vert)
-	connectedVertsIdx = mesh.Vertices.GetConnectedVertices(idx)
-	# for i in connectedVertsIdx:
-	# 	if(i!=idx):
-	# 		v = mesh.Vertices[i]
-	# 		rs.AddSphere(v,.01)
-	# print type(connectedVertsIdx)
-	# print str(connectedVertsIdx)
+	connectedVertsIdx = mesh.Vertices.GetConnectedVertices(idx)	
 	
 
 	tVertIdx = mesh.TopologyVertices.TopologyVertexIndex(idx)
 	tVert = mesh.TopologyVertices[tVertIdx]
 	assert (tVert==vert), "topolgy vert and vert not the same!"
-	vertsRepesent = mesh.TopologyVertices.MeshVertexIndices(tVertIdx)
 
-	tConnectedVerts = mesh.TopologyVertices.ConnectedTopologyVertices(tVertIdx)
+	r = .01
+	for neighVertIdx in connectedVertsIdx:
+		if(neighVertIdx !=idx):
 
-	#rs.AddPoint(tVert)
-	# print "meshType in neighbor check: " + str(type(mesh))
-	for neighIdx in connectedVertsIdx:
-		if(neighIdx !=idx):
-			neighVert = mesh.Vertices[neighIdx]
-			dist = rs.Distance(vert,neighVert)
+			tCenterVertIdx = mesh.TopologyVertices.TopologyVertexIndex(idx)
+			tCenterVert = mesh.TopologyVertices[tCenterVertIdx]
 
-			distStr = "%.2f" %dist
-			#textDot = rs.AddTextDot(distStr,neighVert)
-
-			tNeighIdx = mesh.TopologyVertices.TopologyVertexIndex(neighIdx)
-			edgeIdx = mesh.TopologyEdges.GetEdgeIndex(tVertIdx,tNeighIdx)
-
-			if dist >= maxLength:
-				mesh.TopologyEdges.SplitEdge(edgeIdx,0.5)
-				scriptcontext.doc.Objects.Replace(objRef, mesh)
-				#scriptcontext.doc.Objects.AddMesh(mesh)
-				#rs.TextObjectStyle(textDot,Italic)
-				print("long edge: %.2f" %dist)
-				#find that edge subdivide it
-				
-			elif dist <= minLength:
-				#find that edge collapse it
-
-				print("short edge: %.2f" %dist)
-				#rs.TextObjectStyle(textDot,Italic)
-
-
-
+			tNeighVertIdx = mesh.TopologyVertices.TopologyVertexIndex(neighVertIdx)
+			tNeighVert = mesh.TopologyVertices[tNeighVertIdx]
+			#rs.AddSphere(tNeighVert,r)
+			foundEdge = mesh.TopologyEdges.GetEdgeIndex(tCenterVertIdx,tNeighVertIdx)
+			print "foundEdge: " + str(foundEdge)
+			mesh.TopologyEdges.SplitEdge(foundEdge,.5)
+			r +=.01
+	scriptcontext.doc.Objects.Replace(objRef,mesh)
 
 
 
