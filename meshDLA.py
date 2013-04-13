@@ -17,6 +17,10 @@ def meshDLA_MAIN():
 	print "type objRef: " + str(type(objRef))
 	mesh  = objRef.Mesh()
 	mesh.Compact()
+	mesh.Normals.ComputeNormals()
+	#mesh.Normals.Flip()
+	mesh.Normals.UnitizeNormals()
+	nVerts = mesh.Vertices.Count
 	if not mesh: return
 
 	# seedMeshID = scriptcontext.doc.Objects.Find(objRef.ObjectId)
@@ -48,8 +52,11 @@ def meshDLA_MAIN():
 	yRange = [boundBox[0].Y,boundBox[2].Y]
 	z = boundBox[4].Z
 
-	radius = .1
-	nParticles =10
+	radius = .05
+	nParticles =20
+	timeSteps = 1000
+	growLength = .001
+	feedLength = .01
 	for i in range(nParticles):
 		#x = random.uniform(xMin,xMax)
 		#y = random.uniform(yMin,yMax)
@@ -59,43 +66,51 @@ def meshDLA_MAIN():
 		p.drawParticle(i)
 		particles.append(p)
 
-	nVerts = mesh.Vertices.Count
+
+	
 	#print "nParticles = " + str(len(particles))
 
-	timeSteps = 100
+	
 	for t in range(timeSteps):
 		#time.sleep(0.01*10**-7)
 		#Rhino.RhinoApp.Wait()
 		scriptcontext.escape_test()
 		for i in range(len(particles)):
-			#print "particle#: " + str(i)
+
 			p = particles[i]
-			p.moveParticle(speed = .08)
+			p.moveParticle(speed = .01)
 
 			if not p.inBounds(boxID):
 				p.setToSpawnLoc(xRange,yRange,z)
 
-			stickIdx = p.didStick(mesh,nVerts)
+			stickIdx = p.didStick(mesh)
 			if stickIdx >=0:
-				growVertice(objRef,mesh,stickIdx,p.posVec)
-				checkVertNeighborEdges(objRef,mesh,stickIdx,[.05,.17])
+				growVertice(objRef,mesh,stickIdx,p.posVec,.006)
+				checkVertNeighborEdges(objRef,mesh,stickIdx,[.05,.11])
+				mesh.Normals.ComputeNormals()
+				mesh.Normals.UnitizeNormals()
+				#displayFeedNormals(mesh,feedLength)
+				#displayVertices(mesh)
 				p.setToSpawnLoc(xRange,yRange,z)
+				
+				
 						
 			p.clearParticle()
 			p.drawParticle(i)
 
-def growVertice(objRef, mesh,idx,foodVec):
-	#scriptcontext.doc.Objects.Delete(objRef,True)
+def growVertice(objRef, mesh,idx,foodVec,growLength):
 	vert = mesh.Vertices[idx]
-	newLoc = rs.VectorSubtract(vert,foodVec)
-	mesh.Vertices.SetVertex(idx,foodVec.X,foodVec.Y,foodVec.Z)
+	vertNormal = mesh.Normals[idx]
+	growVec = vertNormal.Multiply(vertNormal,growLength)
+	newLoc = rs.VectorAdd(vert,growVec)
+	normalArrow = rs.AddLine(vert,newLoc)
+	rs.CurveArrows(normalArrow,2)
+	#newLoc = Rhino.Geometry.Vector3f.Add()
+	#print type(newLoc)
+	mesh.Vertices.SetVertex(idx,newLoc.X,newLoc.Y,newLoc.Z)
 	scriptcontext.doc.Objects.Replace(objRef, mesh)
-	#print type(scriptcontext.doc.Objects)
-	#scriptcontext.doc.Views.Redraw()
-	# if scriptcontext.doc.Objects.AddMesh(mesh)!=System.Guid.Empty:
-	# 	scriptcontext.doc.Views.Redraw()
-	# 	return Rhino.Commands.Result.Success
-	# return Rhino.Commands.Result.Failure
+
+
 
 def checkVertNeighborEdges(objRef, mesh,idx,lengthRange):
 	minLength = lengthRange[0]
@@ -110,7 +125,7 @@ def checkVertNeighborEdges(objRef, mesh,idx,lengthRange):
 	tVert = mesh.TopologyVertices[tVertIdx]
 	assert (tVert==vert), "topolgy vert and vert not the same!"
 
-	r = .01
+
 	for neighVertIdx in connectedVertsIdx:
 		if(neighVertIdx !=idx):
 
@@ -120,13 +135,37 @@ def checkVertNeighborEdges(objRef, mesh,idx,lengthRange):
 			tNeighVertIdx = mesh.TopologyVertices.TopologyVertexIndex(neighVertIdx)
 			tNeighVert = mesh.TopologyVertices[tNeighVertIdx]
 			#rs.AddSphere(tNeighVert,r)
-			foundEdge = mesh.TopologyEdges.GetEdgeIndex(tCenterVertIdx,tNeighVertIdx)
-			print "foundEdge: " + str(foundEdge)
-			mesh.TopologyEdges.SplitEdge(foundEdge,.5)
-			r +=.01
+			dist = rs.Distance(tCenterVert,tNeighVert)
+			strDist = "%.2f" % dist
+			if(dist >= maxLength):
+
+				foundEdgeIdx = mesh.TopologyEdges.GetEdgeIndex(tCenterVertIdx,tNeighVertIdx)
+				mesh.TopologyEdges.SplitEdge(foundEdgeIdx,.5)
+
+			elif (dist<=minLength):
+
+				foundEdgeIdx = mesh.TopologyEdges.GetEdgeIndex(tCenterVertIdx,tNeighVertIdx)
+				mesh.TopologyEdges.CollapseEdge(foundEdgeIdx)
+				#print "FuseEdge dist: " + strDist
+				#rs.AddTextDot(strDist,tNeighVert)
+
+			# foundEdge = mesh.TopologyEdges.GetEdgeIndex(tCenterVertIdx,tNeighVertIdx)
+			# mesh.TopologyEdges.SplitEdge(foundEdge,.5)
 	scriptcontext.doc.Objects.Replace(objRef,mesh)
 
 
+def displayFeedNormals(mesh,feedLength):
+	for i in range(mesh.Vertices.Count):
+		vertNormal = mesh.Normals[i]
+		feedVec = vertNormal.Multiply(vertNormal,feedLength)
+		vert = mesh.Vertices[i]
+		newLoc = rs.VectorAdd(vert,feedVec)
+		feedLine = rs.AddLine(vert,newLoc)
+
+def displayVertices(mesh):
+	for i in range(mesh.Vertices.Count):
+		vert = mesh.Vertices[i]
+		rs.AddPoint(vert)
 
 	
 
@@ -163,7 +202,8 @@ class Particle:
 		y = random.uniform(yRange[0],yRange[1])
 		self.posVec =  rs.VectorCreate([x,y,z],[0,0,0])
 
-	def didStick(self,mesh,nVerts):
+	def didStick(self,mesh):
+		nVerts = mesh.Vertices.Count
 		stickIdx = -1
 		for i in range(nVerts):
 			vert = mesh.Vertices[i]
