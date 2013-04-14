@@ -1,4 +1,6 @@
 #DLA on a mesh
+#http://wiki.mcneel.com/developer/rhinocommonsamples/closestpoint?s[]=rtree
+#use R-tree
 
 import rhinoscriptsyntax as rs
 import random
@@ -21,6 +23,7 @@ def meshDLA_MAIN():
 	#mesh.Normals.Flip()
 	mesh.Normals.UnitizeNormals()
 	nVerts = mesh.Vertices.Count
+
 	if not mesh: return
 
 	# seedMeshID = scriptcontext.doc.Objects.Find(objRef.ObjectId)
@@ -28,42 +31,29 @@ def meshDLA_MAIN():
 	# seedVerts = seedMesh.Vertices
 
 	filter = Rhino.DocObjects.ObjectType.PolysrfFilter
-	rc, boundBoxRef = Rhino.Input.RhinoGet.GetOneObject("select boundingBox",False,filter)
-	if not boundBoxRef or rc!=Rhino.Commands.Result.Success: return rc
-	boxID = scriptcontext.doc.Objects.Find(boundBoxRef.ObjectId)
-	boundBox = rs.BoundingBox(boxID.Geometry)
+	rc, boxRef = Rhino.Input.RhinoGet.GetOneObject("select boundingBox",False,filter)
+	if not boxRef or rc!=Rhino.Commands.Result.Success: return rc
+	boxID = scriptcontext.doc.Objects.Find(boxRef.ObjectId)
+	boundBoxID = rs.BoundingBox(boxID.Geometry)
 
-	# pnt1 = rs.GetObject("select test vert")
-	# if not pnt1: return
-	# isInside = rs.IsPointInSurface(boundBoxID,pnt1)
-	# print "isInside: " + str(isInside)
-
-	# if boundBox:
-	# 	for i, point in enumerate(boundBox):
-	# 		rs.AddTextDot(i,point)
+	world = World(boxRef)
+	world.setSpawnPlane()
 
 	particles = []
 
-	xMin = boundBox[0].X
-	xMax = boundBox[1].X
-	xRange = [boundBox[0].X,boundBox[1].X]
-	yMin = boundBox[0].Y
-	yMax = boundBox[2].Y
-	yRange = [boundBox[0].Y,boundBox[2].Y]
-	z = boundBox[4].Z
-
 	radius = .05
-	nParticles =40
+	nParticles =20
 	timeSteps = 1000
 	growLength = .001
 	feedLength = .01
+	maxEdgeLength = .11
 
 	for i in range(nParticles):
 		#x = random.uniform(xMin,xMax)
 		#y = random.uniform(yMin,yMax)
 		#posVec = rs.VectorCreate([x,y,z],[0,0,0])
 		p = Particle(radius)
-		p.setToSpawnLoc(xRange,yRange,z)
+		p.setToSpawnLoc(world)
 		p.drawParticle(i)
 		particles.append(p)
 
@@ -73,33 +63,76 @@ def meshDLA_MAIN():
 
 	
 	for t in range(timeSteps):
-		#time.sleep(0.01*10**-7)
-		#Rhino.RhinoApp.Wait()
-		scriptcontext.escape_test()
+		time.sleep(0.01*10**-8)
+		Rhino.RhinoApp.Wait()
+		#scriptcontext.escape_test()
 		for i in range(len(particles)):
 
 			p = particles[i]
 			p.moveParticle(speed = .01)
 
-			if not p.inBounds(boxID):
-				p.setToSpawnLoc(xRange,yRange,z)
-
-			stickIdx = p.didStick(mesh)
-			if stickIdx >=0:
-				growVertice(objRef,mesh,stickIdx,p.posVec,.006)
-				checkVertNeighborEdges(objRef,mesh,stickIdx,[.05,.11])
-				mesh.Normals.ComputeNormals()
-				mesh.Normals.UnitizeNormals()
-				#displayFeedNormals(mesh,feedLength)
-				#displayVertices(mesh)
-				p.setToSpawnLoc(xRange,yRange,z)
-				
-				
-						
+			if not p.inBounds(world):
+				p.setToSpawnLoc(world)
 			p.clearParticle()
 			p.drawParticle(i)
 
-def growVertice(objRef, mesh,idx,foodVec,growLength):
+		growVerts = searchMesh(world,mesh,particles)
+
+		for gVertIdx in growVerts:
+			growVertice(objRef,mesh,gVertIdx,growLength)
+			checkVertNeighborEdges(objRef,mesh,gVertIdx,[.05,.11])
+
+
+
+			# if stickIdx >=0:
+			# 	growVertice(objRef,mesh,stickIdx,p.posVec,.006)
+			# 	checkVertNeighborEdges(objRef,mesh,stickIdx,maxEdgeLength)
+			# 	mesh.Normals.ComputeNormals()
+			# 	mesh.Normals.UnitizeNormals()
+			# 	#displayFeedNormals(mesh,feedLength)
+			# 	#displayVertices(mesh)
+			# 	p.setToSpawnLoc(world)
+
+			# p.clearParticle()
+			# p.drawParticle(i)
+
+def searchMesh(world,mesh,particles):
+	tree = Rhino.Geometry.RTree()
+
+	for i,vertex in enumerate(mesh.Vertices):
+		tree.Insert(vertex, i)
+
+	def SearchCallback(sender, data):
+		sData = data.Tag
+		sData.vertices.add(data.Id)
+		sData.addedVert = True
+
+	class SearchData:
+
+		def __init__(self):
+			self.vertices = set()
+			self.addedVert = False
+
+	sData = SearchData()
+			
+	for particle in particles:
+		x = particle.posVec.X
+		y = particle.posVec.Y
+		z = particle.posVec.Z
+		pnt = Rhino.Geometry.Point3d(x,y,z)
+		sphere = Rhino.Geometry.Sphere(pnt,particle.radius)
+		tree.Search(sphere, SearchCallback, sData)
+		if(sData.addedVert):
+			particle.setToSpawnLoc(world)
+		sData.addedVert = False
+		
+
+
+	return sData.vertices
+
+
+
+def growVertice(objRef, mesh,idx,growLength):
 	vert = mesh.Vertices[idx]
 	vertNormal = mesh.Normals[idx]
 	growVec = vertNormal.Multiply(vertNormal,growLength)
@@ -184,13 +217,36 @@ def displayVertices(mesh):
 		vert = mesh.Vertices[i]
 		rs.AddPoint(vert)
 
-	
 
+class World:
+	spawnXRange = None
+	spawnYRange = None
+	spawnZ = None
+
+	def __init__(self,boxRef):
+		self.boxID = boxRef.ObjectId
+		self.boundBox = rs.BoundingBox(self.boxID)
+		print "world created"
+		print "world.boundBox type:" + str(type(self.boundBox))
+		print "world.boxID type:" + str(type(self.boxID))
+
+	
+	def setSpawnPlane(self):
+		xMin = self.boundBox[0].X
+		xMax = self.boundBox[1].X
+		self.spawnXRange = [xMin,xMax]
+
+		yMin = self.boundBox[0].Y
+		yMax = self.boundBox[2].Y
+		self.spawnYRange = [yMin,yMax]
+
+		self.spawnZ = self.boundBox[4].Z-.01
 
 
 class Particle:
 	geom = None
 	textDot = None
+
 	def __init__(self, radius):
 		self.posVec = [0,0,0]
 		self.radius = radius
@@ -210,11 +266,15 @@ class Particle:
 		#rs.MoveObject(obj,vel)
 	
 
-	def inBounds(self,boundBoxID):
+	def inBounds(self,world):
 		pnt = self.geom[0]
-		return rs.IsPointInSurface(boundBoxID,pnt)
+		return rs.IsPointInSurface(world.boxID,pnt)
 
-	def setToSpawnLoc(self,xRange,yRange,z):
+	def setToSpawnLoc(self,world):
+		xRange = world.spawnXRange
+		yRange = world.spawnYRange
+		z = world.spawnZ
+
 		x = random.uniform(xRange[0],xRange[1])
 		y = random.uniform(yRange[0],yRange[1])
 		self.posVec =  rs.VectorCreate([x,y,z],[0,0,0])
@@ -246,6 +306,7 @@ class Particle:
 
 	def clearParticle(self):
 		rs.DeleteObjects(self.geom)
+
 
 
 if __name__=="__main__":
