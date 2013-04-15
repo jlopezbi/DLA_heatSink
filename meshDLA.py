@@ -42,30 +42,23 @@ def meshDLA_MAIN():
 	particles = []
 
 	radius = .05
-	nParticles =20
-	timeSteps = 1000
-	growLength = .001
+	nParticles =25
+	timeSteps = 2000
+	growLength = .005
 	feedLength = .01
 	maxEdgeLength = .11
+	minEdgeLen = .001
 
 	for i in range(nParticles):
-		#x = random.uniform(xMin,xMax)
-		#y = random.uniform(yMin,yMax)
-		#posVec = rs.VectorCreate([x,y,z],[0,0,0])
 		p = Particle(radius)
 		p.setToSpawnLoc(world)
 		p.drawParticle(i)
 		particles.append(p)
-
-
-	
-	#print "nParticles = " + str(len(particles))
-
 	
 	for t in range(timeSteps):
-		time.sleep(0.01*10**-8)
-		Rhino.RhinoApp.Wait()
-		#scriptcontext.escape_test()
+		#time.sleep(0.01*10**-8)
+		#Rhino.RhinoApp.Wait()
+		scriptcontext.escape_test()
 		for i in range(len(particles)):
 
 			p = particles[i]
@@ -80,21 +73,11 @@ def meshDLA_MAIN():
 
 		for gVertIdx in growVerts:
 			growVertice(objRef,mesh,gVertIdx,growLength)
-			checkVertNeighborEdges(objRef,mesh,gVertIdx,[.05,.11])
+			subdivideLongNeighbors(objRef,mesh,gVertIdx,[.05,.11])
+
+		collapseShortEdges(mesh,minEdgeLen)
 
 
-
-			# if stickIdx >=0:
-			# 	growVertice(objRef,mesh,stickIdx,p.posVec,.006)
-			# 	checkVertNeighborEdges(objRef,mesh,stickIdx,maxEdgeLength)
-			# 	mesh.Normals.ComputeNormals()
-			# 	mesh.Normals.UnitizeNormals()
-			# 	#displayFeedNormals(mesh,feedLength)
-			# 	#displayVertices(mesh)
-			# 	p.setToSpawnLoc(world)
-
-			# p.clearParticle()
-			# p.drawParticle(i)
 
 def searchMesh(world,mesh,particles):
 	tree = Rhino.Geometry.RTree()
@@ -137,16 +120,30 @@ def growVertice(objRef, mesh,idx,growLength):
 	vertNormal = mesh.Normals[idx]
 	growVec = vertNormal.Multiply(vertNormal,growLength)
 	newLoc = rs.VectorAdd(vert,growVec)
+	"""
 	normalArrow = rs.AddLine(vert,newLoc)
 	rs.CurveArrows(normalArrow,2)
+	"""
 	#newLoc = Rhino.Geometry.Vector3f.Add()
 	#print type(newLoc)
 	mesh.Vertices.SetVertex(idx,newLoc.X,newLoc.Y,newLoc.Z)
 	scriptcontext.doc.Objects.Replace(objRef, mesh)
 
+def collapseShortEdges(mesh,minEdgeLen):
+	collapsedAnEdge = False
+	for i in range(mesh.TopologyEdges.Count):
+		edgeLine = mesh.TopologyEdges.EdgeLine(i)
+		length = edgeLine.Length
+		if(length<minEdgeLen):
+			mesh.TopologyEdges.CollapseEdge(i)
+			collapsedAnEdge = True
+	if collapsedAnEdge:
+		scriptcontext.doc.Objects.Replace(objRef,mesh)
 
 
-def checkVertNeighborEdges(objRef, mesh,idx,lengthRange):
+
+
+def subdivideLongNeighbors(objRef, mesh,idx,lengthRange):
 	minLength = lengthRange[0]
 	maxLength = lengthRange[1]
 
@@ -163,22 +160,11 @@ def checkVertNeighborEdges(objRef, mesh,idx,lengthRange):
 	for neighVertIdx in connectedVertsIdx:
 		if(neighVertIdx !=idx):
 
-			if(idx >= mesh.Vertices.Count):
-				print "num Vertices: " + str(mesh.Vertices.Count)
-				print "vertIdx problematic: " + str(idx)
-
-			if(idx >= mesh.TopologyVertices.Count or idx<0):
-				rs.AddTextDot("pCv",mesh.Vertices[idx])
-				tCenterVertIdx = 2
-			else:
-				tCenterVertIdx = mesh.TopologyVertices.TopologyVertexIndex(idx)
+			
+			tCenterVertIdx = mesh.TopologyVertices.TopologyVertexIndex(idx)
 			tCenterVert = mesh.TopologyVertices[tCenterVertIdx]
 
-			if(neighVertIdx >= mesh.TopologyVertices.Count or neighVertIdx < 0):
-				rs.AddTextDot("pNv",mesh.Vertices[neighVertIdx])
-				tNeighVertIdx = 2
-			else:
-				tNeighVertIdx = mesh.TopologyVertices.TopologyVertexIndex(neighVertIdx)
+			tNeighVertIdx = mesh.TopologyVertices.TopologyVertexIndex(neighVertIdx)
 			tNeighVert = mesh.TopologyVertices[tNeighVertIdx]
 			#rs.AddSphere(tNeighVert,r)
 			dist = rs.Distance(tCenterVert,tNeighVert)
