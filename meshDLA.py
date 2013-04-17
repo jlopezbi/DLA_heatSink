@@ -32,14 +32,23 @@ def meshDLA_MAIN():
 		
 	
 
-	pRadius = .05
+	pRadius = .4
+	speed = pRadius*.333
 	nParticles =25
-	timeSteps = 100
-	growLength = .001
+	timeSteps = 4000
+	growLength = .07
 	feedLength = .01
-	maxEdgeLength = .07
-	minEdgeLen = .023
-	thresMult = 2
+	maxEdgeLength = .5
+	minEdgeLen = .1
+	thresMult = 1.3
+
+	print "pRadius = " +str(pRadius)
+	print "nParticles = " +str(nParticles)
+	print "timeSteps = " +str(timeSteps)
+	print "growLength = " +str(growLength)
+	print "maxEdgeLength = " +str(maxEdgeLength)
+	print "minEdgeLen = " +str(minEdgeLen)
+	print "thresMult = " + str(thresMult)
 
 	world = World(boxRef,pRadius)
 	world.getSpawnPlane()
@@ -65,7 +74,7 @@ def meshDLA_MAIN():
 		for i in range(len(particles)):
 
 			p = particles[i]
-			p.moveParticle(speed = .01)
+			p.moveParticle(speed)
 
 			if not p.inBounds(world):
 				p.setToSpawnLoc(world)
@@ -92,7 +101,6 @@ def meshDLA_MAIN():
 
 		#MOVE TOP OF BOUND BOX`
 		if(highestPoint>prevHighestPoint):
-			print "highestPoint grew"
 			world.moveTop(highestPoint,pRadius,thresMult)
 			world.reDraw()
 			world.getSpawnPlane()
@@ -101,8 +109,9 @@ def meshDLA_MAIN():
 		scriptcontext.doc.Objects.Replace(objRef, mesh)
 		
 
-	displayFeedNormals(mesh,growLength)
-
+	displayGrowNormals(mesh,growLength)
+	for particle in particles:
+		scriptcontext.doc.Objects.Hide(particle.sphereID,True)
 
 
 def searchMesh(world,mesh,particles):
@@ -146,8 +155,8 @@ def growVertice(objRef, mesh,idx,growLength):
 	growVec = vertNormal.Multiply(vertNormal,growLength)
 	newLoc = rs.VectorAdd(vert,growVec)
 	
-	normalArrow = rs.AddLine(vert,newLoc)
-	rs.CurveArrows(normalArrow,2)
+	#normalArrow = rs.AddLine(vert,newLoc)
+	#rs.CurveArrows(normalArrow,2)
 	
 	#newLoc = Rhino.Geometry.Vector3f.Add()
 	#print type(newLoc)
@@ -206,7 +215,7 @@ def subdivideLongNeighbors(objRef, mesh,idx,maxEdgeLength):
 	#scriptcontext.doc.Objects.Replace(objRef,mesh)
 
 
-def displayFeedNormals(mesh,displayLength):
+def displayGrowNormals(mesh,displayLength):
 	for i in range(mesh.Vertices.Count):
 		vertNormal = mesh.Normals[i]
 		feedVec = vertNormal.Multiply(vertNormal,displayLength)
@@ -258,15 +267,15 @@ class World:
 		self.spawnZ = self.boundBoxBetter.Max.Z
 
 	def moveTop(self,highestPoint,pRadius,thresMult):
-		print "move Top called"
 		maxX = self.boundBoxBetter.Max.X
 		maxY = self.boundBoxBetter.Max.Y
 		maxZ = self.spawnZ
 
 		dist = maxZ - highestPoint
-		if(dist < pRadius*thresMult):
-			print "highest point inside threshold area"
-			newMaxZ = highestPoint+pRadius
+		travelZone = pRadius*thresMult
+		if(dist < travelZone):
+			#print "highest point inside threshold area"
+			newMaxZ = highestPoint+travelZone
 			newPnt = Rhino.Geometry.Point3d(maxX,maxY,newMaxZ)
 			self.boundBoxBetter.Max = newPnt
 
