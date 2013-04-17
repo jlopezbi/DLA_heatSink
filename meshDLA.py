@@ -15,8 +15,6 @@ def meshDLA_MAIN():
 	filter = Rhino.DocObjects.ObjectType.Mesh
 	rc, objRef = Rhino.Input.RhinoGet.GetOneObject("select seedMesh",False,filter)
 	if not objRef or rc!=Rhino.Commands.Result.Success: return rc
-	print "BEGIN_________________________"
-	print "type objRef: " + str(type(objRef))
 	mesh  = objRef.Mesh()
 	if not mesh: return
 	mesh.Compact()
@@ -35,13 +33,14 @@ def meshDLA_MAIN():
 	pRadius = .4
 	speed = pRadius*.333
 	nParticles =25
-	timeSteps = 4000
+	timeSteps = 2000
 	growLength = .07
 	feedLength = .01
-	maxEdgeLength = .5
+	maxEdgeLength = .6355
 	minEdgeLen = .1
 	thresMult = 1.3
 
+	print "BEGIN_________________________"
 	print "pRadius = " +str(pRadius)
 	print "nParticles = " +str(nParticles)
 	print "timeSteps = " +str(timeSteps)
@@ -53,6 +52,7 @@ def meshDLA_MAIN():
 	world = World(boxRef,pRadius)
 	world.getSpawnPlane()
 	#world.draw()
+	coral = Coral(objRef,mesh)
 
 	particles = []
 	growVerts = set()
@@ -82,22 +82,25 @@ def meshDLA_MAIN():
 			p.drawParticle(i)
 
 		#SEARCH FOR INTERSECTIONS
-		growVerts = searchMesh(world,mesh,particles)
+		growVerts = coral.verticesThatAte(world,particles)
+		#growVerts = verticesThatAte(world,mesh,particles)
 
 		#GROW THE VERTS THAT INTERSECTED
 		for gVertIdx in growVerts:
-			newPnt = growVertice(objRef,mesh,gVertIdx,growLength)
+			newPnt = coral.growVertice(gVertIdx,growLength)
 			if(newPnt >highestPoint):
 				highestPoint = newPnt
-			subdivideLongNeighbors(objRef,mesh,gVertIdx,maxEdgeLength)
-			mesh.Normals.ComputeNormals()
-			mesh.Normals.UnitizeNormals()
+			#subdivideLongNeighbors(objRef,mesh,gVertIdx,maxEdgeLength)
+			# mesh.Normals.ComputeNormals()
+			# mesh.Normals.UnitizeNormals()
+			coral.subdivideLongEdges(maxEdgeLength)
+			coral.updateNormals()
+			
 
 		#COLLAPSE SHORT EDGES
-		didCollapse = collapseShortEdges(mesh,minEdgeLen)
+		didCollapse = coral.collapseShortEdges(minEdgeLen)
 		if(didCollapse):
-			mesh.Normals.ComputeNormals()
-			mesh.Normals.UnitizeNormals()
+			coral.updateNormals()
 
 		#MOVE TOP OF BOUND BOX`
 		if(highestPoint>prevHighestPoint):
@@ -106,15 +109,161 @@ def meshDLA_MAIN():
 			world.getSpawnPlane()
 		prevHighestPoint = highestPoint
 
-		scriptcontext.doc.Objects.Replace(objRef, mesh)
+		coral.reDraw()
+
 		
 
-	displayGrowNormals(mesh,growLength)
+	#displayGrowNormals(mesh,growLength)
 	for particle in particles:
 		scriptcontext.doc.Objects.Hide(particle.sphereID,True)
 
 
-def searchMesh(world,mesh,particles):
+
+
+#---------------------------CORAL----------------------------------
+class Coral:
+	def __init__(self,objRef,mesh):
+		self.objRef = objRef
+		self.mesh = mesh
+		self.mesh.Compact()
+
+	def verticesThatAte(self, world, particles):
+		mesh = self.mesh
+		tree = Rhino.Geometry.RTree()
+
+		#populate Rtree with mesh vertices
+		for i,vertex in enumerate(mesh.Vertices):
+			tree.Insert(vertex, i)
+
+		#function that runs when a sphere intersects with a vert
+		def SearchCallback(sender, data):
+			sData = data.Tag
+			sData.vertices.add(data.Id)
+			sData.addedVert = True
+
+		class SearchData:
+			def __init__(self):
+				self.vertices = set()
+				self.addedVert = False
+
+		sData = SearchData()
+				
+		for particle in particles:
+			sphere = particle.sphere
+			tree.Search(sphere, SearchCallback, sData)
+			if(sData.addedVert):
+				particle.setToSpawnLoc(world)
+			sData.addedVert = False
+
+		return sData.vertices
+
+
+	def growVertice(self,idx,growLength):
+		mesh = self.mesh
+		vert = mesh.Vertices[idx]
+		vertNormal = mesh.Normals[idx]
+		growVec = vertNormal.Multiply(vertNormal,growLength)
+		newLoc = rs.VectorAdd(vert,growVec)
+		
+		#normalArrow = rs.AddLine(vert,newLoc)
+		#rs.CurveArrows(normalArrow,2)
+		
+		mesh.Vertices.SetVertex(idx,newLoc.X,newLoc.Y,newLoc.Z)
+		return newLoc.Z
+		#scriptcontext.doc.Objects.Replace(objRef, mesh)
+
+	def collapseShortEdges(self,minEdgeLen):
+		mesh = self.mesh
+		collapsedAnEdge = False
+		for i in range(mesh.TopologyEdges.Count):
+			edgeLine = mesh.TopologyEdges.EdgeLine(i)
+			length = edgeLine.Length
+			if(length<minEdgeLen):
+				mesh.TopologyEdges.CollapseEdge(i)
+				collapsedAnEdge = True
+		if collapsedAnEdge:
+			print "collapsed and edge!"
+		return collapsedAnEdge
+			#scriptcontext.doc.Objects.Replace(objRef,mesh)
+
+	def subdivideLongEdges(self,maxEdgeLength):
+		#iterate through all vertices of mesh and subdivide if too long. slower than
+		#subdividLongNeighbors, but easier to write
+		mesh = self.mesh
+		edges = mesh.TopologyEdges
+		nEdges = mesh.TopologyEdges.Count
+		for i in range(nEdges):
+			tVerts = mesh.TopologyEdges.GetTopologyVertices(i)
+			p1 = mesh.TopologyVertices[tVerts.I]
+			p2 = mesh.TopologyVertices[tVerts.J]
+			lenEdge =  p1.DistanceTo(p2)
+			if(lenEdge >= maxEdgeLength):
+				mesh.TopologyEdges.SplitEdge(i,.5) 
+
+
+	def subdivideLongNeighbors(self,idx,maxEdgeLength):
+		mesh = self.mesh
+		#minLength = lengthRange[0]
+		#maxLength = lengthRange[1]
+
+		vert = mesh.Vertices[idx]
+		#rs.AddTextDot("v",vert)
+		connectedVertsIdx = mesh.Vertices.GetConnectedVertices(idx)	
+		
+
+		tVertIdx = mesh.TopologyVertices.TopologyVertexIndex(idx)
+		tVert = mesh.TopologyVertices[tVertIdx]
+		assert (tVert==vert), "topolgy vert and vert not the same!"
+
+
+		for neighVertIdx in connectedVertsIdx:
+			if(neighVertIdx !=idx):
+
+				
+				tCenterVertIdx = mesh.TopologyVertices.TopologyVertexIndex(idx)
+				tCenterVert = mesh.TopologyVertices[tCenterVertIdx]
+
+				tNeighVertIdx = mesh.TopologyVertices.TopologyVertexIndex(neighVertIdx)
+				tNeighVert = mesh.TopologyVertices[tNeighVertIdx]
+				#rs.AddSphere(tNeighVert,r)
+				dist = rs.Distance(tCenterVert,tNeighVert)
+				strDist = "%.2f" % dist
+
+				if(dist >= maxEdgeLength):
+
+					foundEdgeIdx = mesh.TopologyEdges.GetEdgeIndex(tCenterVertIdx,tNeighVertIdx)
+					mesh.TopologyEdges.SplitEdge(foundEdgeIdx,.5)
+
+		#scriptcontext.doc.Objects.Replace(objRef,mesh)
+
+
+	def displayGrowNormals(self,displayLength):
+		mesh = self.mesh
+		for i in range(mesh.Vertices.Count):
+			vertNormal = mesh.Normals[i]
+			feedVec = vertNormal.Multiply(vertNormal,displayLength)
+			vert = mesh.Vertices[i]
+			newLoc = rs.VectorAdd(vert,feedVec)
+			feedLine = rs.AddLine(vert,newLoc)
+
+	def displayVertices(self):
+		mesh = self.mesh
+		for i in range(mesh.Vertices.Count):
+			vert = mesh.Vertices[i]
+			rs.AddPoint(vert)
+
+	def reDraw(self):
+		scriptcontext.doc.Objects.Replace(self.objRef,self.mesh)
+
+	def updateNormals(self):
+		self.mesh.Normals.ComputeNormals()
+		self.mesh.Normals.UnitizeNormals()
+		self.mesh.Compact()
+
+#-----------------------------------------------------------------------
+
+
+def verticesThatAte(world,mesh,particles):
 	tree = Rhino.Geometry.RTree()
 
 	for i,vertex in enumerate(mesh.Vertices):
@@ -147,8 +296,6 @@ def searchMesh(world,mesh,particles):
 
 	return sData.vertices
 
-
-
 def growVertice(objRef, mesh,idx,growLength):
 	vert = mesh.Vertices[idx]
 	vertNormal = mesh.Normals[idx]
@@ -158,8 +305,6 @@ def growVertice(objRef, mesh,idx,growLength):
 	#normalArrow = rs.AddLine(vert,newLoc)
 	#rs.CurveArrows(normalArrow,2)
 	
-	#newLoc = Rhino.Geometry.Vector3f.Add()
-	#print type(newLoc)
 	mesh.Vertices.SetVertex(idx,newLoc.X,newLoc.Y,newLoc.Z)
 	return newLoc.Z
 	#scriptcontext.doc.Objects.Replace(objRef, mesh)
@@ -176,9 +321,6 @@ def collapseShortEdges(mesh,minEdgeLen):
 		print "collapsed and edge!"
 	return collapsedAnEdge
 		#scriptcontext.doc.Objects.Replace(objRef,mesh)
-
-
-
 
 def subdivideLongNeighbors(objRef, mesh,idx,maxEdgeLength):
 	#minLength = lengthRange[0]
@@ -214,7 +356,6 @@ def subdivideLongNeighbors(objRef, mesh,idx,maxEdgeLength):
 
 	#scriptcontext.doc.Objects.Replace(objRef,mesh)
 
-
 def displayGrowNormals(mesh,displayLength):
 	for i in range(mesh.Vertices.Count):
 		vertNormal = mesh.Normals[i]
@@ -227,9 +368,6 @@ def displayVertices(mesh):
 	for i in range(mesh.Vertices.Count):
 		vert = mesh.Vertices[i]
 		rs.AddPoint(vert)
-
-
-
 
 
 
@@ -283,10 +421,6 @@ class World:
 	def reDraw(self):
 		box = Rhino.Geometry.Box(self.boundBoxBetter)
 		scriptcontext.doc.Objects.Replace(self.boxBrepID, box.ToBrep())
-
-
-		
-
 
 #---------------------------Particle--------------------------------
 class Particle:
@@ -362,7 +496,6 @@ class Particle:
 	def clearParticle(self):
 		#rs.DeleteObjects(self.geom)
 		return
-
 
 
 if __name__=="__main__":
