@@ -39,15 +39,15 @@ def meshDLA_MAIN():
 	feedLength = .01
 	maxEdgeLength = .07
 	minEdgeLen = .023
-	sideMult = 2
-	topMult = 4
+	thresMult = 2
 
-	world = World(boxRef,pRadius,sideMult,topMult)
+	world = World(boxRef,pRadius)
 	world.getSpawnPlane()
 	#world.draw()
 
 	particles = []
 	growVerts = set()
+	prevHighestPoint = 0;
 	highestPoint = 0
 
 	for i in range(nParticles):
@@ -90,8 +90,13 @@ def meshDLA_MAIN():
 			mesh.Normals.ComputeNormals()
 			mesh.Normals.UnitizeNormals()
 
-		#MOVE TOP OF BOUND BOX
-
+		#MOVE TOP OF BOUND BOX`
+		if(highestPoint>prevHighestPoint):
+			print "highestPoint grew"
+			world.moveTop(highestPoint,pRadius,thresMult)
+			world.reDraw()
+			world.getSpawnPlane()
+		prevHighestPoint = highestPoint
 
 		scriptcontext.doc.Objects.Replace(objRef, mesh)
 		
@@ -227,31 +232,18 @@ class World:
 	corners = None
 	lineIDs = None
 
-	def __init__(self,inputBoxRef,pRadius,sideMult,topMult):
+	def __init__(self,inputBoxRef,pRadius):
 		self.inputBoxID = inputBoxRef.ObjectId
-		#self.inputBoxRef = inputBoxRef.Surface().GetBoundingBox(True)
-		# self.boundBox = rs.BoundingBox(self.boxID)
-
-		# minX = self.boundBox[0].X
-		# maxX = self.boundBox[1].X
-		# minY = self.boundBox[0].Y
-		# maxY = self.boundBox[2].Y
-		# minZ = self.boundBox[0].Z
-		# maxZ = self.boundBox[4].Z
-
 		rs.HideObject(self.inputBoxID)
-		#self.boundBoxBetter = Rhino.Geometry.BoundingBox(minX,minY,minZ,maxX,maxY,maxZ)
-		self.boundBoxBetter = inputBoxRef.Surface().GetBoundingBox(True)
-		self.box = Rhino.Geometry.Box(self.boundBoxBetter)
 	
-		self.boxBrepID = scriptcontext.doc.Objects.AddBrep(self.box.ToBrep())
-		#self.boundBoxBetter.Inflate(pRadius*sideMult,pRadius*sideMult,pRadius*topMult)
+		self.boundBoxBetter = inputBoxRef.Surface().GetBoundingBox(True)
+		box = Rhino.Geometry.Box(self.boundBoxBetter)
+	
+		self.boxBrepID = scriptcontext.doc.Objects.AddBrep(box.ToBrep())
 		self.corners = self.boundBoxBetter.GetCorners()
 		self.lineIDs = []
 
 		print "world created"
-		#print "world.boundBox type:" + str(type(self.boundBox))
-		#print "world.boxID type:" + str(type(self.boxID))
 		print "world.boundBoxBetter type:" + str(type(self.boundBoxBetter))
 
 	
@@ -265,15 +257,26 @@ class World:
 		self.spawnYRange = [yMin,yMax]
 		self.spawnZ = self.boundBoxBetter.Max.Z
 
+	def moveTop(self,highestPoint,pRadius,thresMult):
+		print "move Top called"
+		maxX = self.boundBoxBetter.Max.X
+		maxY = self.boundBoxBetter.Max.Y
+		maxZ = self.spawnZ
+
+		dist = maxZ - highestPoint
+		if(dist < pRadius*thresMult):
+			print "highest point inside threshold area"
+			newMaxZ = highestPoint+pRadius
+			newPnt = Rhino.Geometry.Point3d(maxX,maxY,newMaxZ)
+			self.boundBoxBetter.Max = newPnt
+
+
 	def reDraw(self):
-		boxBrep = self.box.ToBrep()
-		self.boxBrepID = scriptcontext.doc.Objects.Replace(self.boxBrepID, boxBrep)
+		box = Rhino.Geometry.Box(self.boundBoxBetter)
+		scriptcontext.doc.Objects.Replace(self.boxBrepID, box.ToBrep())
 
 
 		
-			
-
-
 
 
 #---------------------------Particle--------------------------------
