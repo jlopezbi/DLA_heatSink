@@ -1,6 +1,6 @@
 #DLA on a mesh
 #http://wiki.mcneel.com/developer/rhinocommonsamples/closestpoint?s[]=rtree
-#use R-tree
+#use R-tree to search for points close enough to vertices
 
 import rhinoscriptsyntax as rs
 import random
@@ -11,21 +11,16 @@ import scriptcontext
 import System.Guid
 
 def meshDLA_MAIN():
-	#mesh = rs.GetObject("select seed mesh", filter=32, preselect=True,)
+
 	filter = Rhino.DocObjects.ObjectType.Mesh
 	rc, objRef = Rhino.Input.RhinoGet.GetOneObject("select seedMesh",False,filter)
 	if not objRef or rc!=Rhino.Commands.Result.Success: return rc
 	mesh  = objRef.Mesh()
 	if not mesh: return
 	mesh.Compact()
-	mesh.Normals.ComputeNormals()
-	#mesh.Normals.Flip()
-	mesh.Normals.UnitizeNormals()
-	
-
 	
 	filter = Rhino.DocObjects.ObjectType.PolysrfFilter
-	rc, boxRef = Rhino.Input.RhinoGet.GetOneObject("select boundingBox",False,filter)
+	rc, boxRef = Rhino.Input.RhinoGet.GetOneObject("select boundingBox (polySrf)",False,filter)
 	if not boxRef or rc!=Rhino.Commands.Result.Success: return rc
 		
 	
@@ -33,21 +28,26 @@ def meshDLA_MAIN():
 	pRadius = .4
 	speed = pRadius*.333
 	nParticles =25
-	timeSteps = 2000
+	timeSteps = 3000
 	growLength = .07
 	feedLength = .01
 	maxEdgeLength = .6355
 	minEdgeLen = .1
 	thresMult = 1.3
+	peakInclination = (4.0/5.0)*math.pi
 
-	print "BEGIN_________________________"
-	print "pRadius = " +str(pRadius)
+	print "INPUT PARAMS________________________"
+	print "pRadius = %1.2f in." % pRadius 
 	print "nParticles = " +str(nParticles)
-	print "timeSteps = " +str(timeSteps)
-	print "growLength = " +str(growLength)
-	print "maxEdgeLength = " +str(maxEdgeLength)
-	print "minEdgeLen = " +str(minEdgeLen)
+	print "timeSteps(ts) = " +str(timeSteps)
+	print "speed = %0.2f in./ts" % speed
+	print "growLength = %0.2f in." % growLength
+	print "maxEdgeLength = %0.2f in." % maxEdgeLength
+	print "minEdgeLen = %0.2f in." % minEdgeLen
 	print "thresMult = " + str(thresMult)
+	peakIncDeg = peakInclination*180.0/math.pi
+	print "peakInclination = %1.1fdeg" % peakIncDeg
+	print "____________________________________"
 
 	world = World(boxRef,pRadius)
 	world.getSpawnPlane()
@@ -59,12 +59,14 @@ def meshDLA_MAIN():
 	prevHighestPoint = 0;
 	highestPoint = 0
 
+	#INITIALIZE PARTICLES
 	for i in range(nParticles):
 		p = Particle(pRadius)
 		p.setToSpawnLoc(world)
 		p.drawParticle(i)
 		particles.append(p)
-	
+
+	#RUN SIMIULATION
 	for t in range(timeSteps):
 		#time.sleep(0.01*10**-8)
 		#Rhino.RhinoApp.Wait()
@@ -74,7 +76,7 @@ def meshDLA_MAIN():
 		for i in range(len(particles)):
 
 			p = particles[i]
-			p.moveParticle(speed)
+			p.moveParticle(speed,peakInclination)
 
 			if not p.inBounds(world):
 				p.setToSpawnLoc(world)
@@ -90,9 +92,7 @@ def meshDLA_MAIN():
 			newPnt = coral.growVertice(gVertIdx,growLength)
 			if(newPnt >highestPoint):
 				highestPoint = newPnt
-			#subdivideLongNeighbors(objRef,mesh,gVertIdx,maxEdgeLength)
-			# mesh.Normals.ComputeNormals()
-			# mesh.Normals.UnitizeNormals()
+
 			coral.subdivideLongEdges(maxEdgeLength)
 			coral.updateNormals()
 			
@@ -123,9 +123,12 @@ def meshDLA_MAIN():
 #---------------------------CORAL----------------------------------
 class Coral:
 	def __init__(self,objRef,mesh):
+		mesh.Normals.ComputeNormals()
+		mesh.Normals.UnitizeNormals()
+		mesh.Compact()
+
 		self.objRef = objRef
 		self.mesh = mesh
-		self.mesh.Compact()
 
 	def verticesThatAte(self, world, particles):
 		mesh = self.mesh
@@ -172,6 +175,20 @@ class Coral:
 		return newLoc.Z
 		#scriptcontext.doc.Objects.Replace(objRef, mesh)
 
+
+	def growRegion(self,idxCenter,growLen,maxDist):
+
+		mesh = self.mesh
+		searchedVerts = []
+
+		#???def searchNeighbors(idxCenter)
+
+		def lenBetweenTVerts(tVertIdx1,tVertIdx2):
+			p1 = mesh.TopologyVertices(tVertIdx1)
+			p2 = mesh.TopologyVertices(tVertIdx2)
+			return p1.DistanceTo(p2)
+
+
 	def collapseShortEdges(self,minEdgeLen):
 		mesh = self.mesh
 		collapsedAnEdge = False
@@ -184,7 +201,6 @@ class Coral:
 		if collapsedAnEdge:
 			print "collapsed and edge!"
 		return collapsedAnEdge
-			#scriptcontext.doc.Objects.Replace(objRef,mesh)
 
 	def subdivideLongEdges(self,maxEdgeLength):
 		#iterate through all vertices of mesh and subdivide if too long. slower than
@@ -233,8 +249,6 @@ class Coral:
 
 					foundEdgeIdx = mesh.TopologyEdges.GetEdgeIndex(tCenterVertIdx,tNeighVertIdx)
 					mesh.TopologyEdges.SplitEdge(foundEdgeIdx,.5)
-
-		#scriptcontext.doc.Objects.Replace(objRef,mesh)
 
 
 	def displayGrowNormals(self,displayLength):
@@ -435,8 +449,8 @@ class Particle:
 		self.radius = radius
 		self.geom = [0,0] #idx 0 => point, idx 1 => sphere
 
-	def moveParticle(self,speed):
-		inclination = random.triangular(0,math.pi+.001,math.pi)
+	def moveParticle(self,speed,peakInclination):
+		inclination = random.triangular(0,peakInclination,math.pi)
 		azimuth = random.uniform(0,math.pi*2.0)
 
 		velX = speed*math.sin(azimuth)*math.cos(inclination)
