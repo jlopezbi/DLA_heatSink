@@ -30,13 +30,17 @@ def meshDLA_MAIN():
 	pRadius = .4
 	speed = pRadius*.333
 	nParticles =25
-	timeSteps = 100
+	timeSteps = 4000
 	growLength = .07
 	feedLength = .01
 	maxEdgeLength = .6355
 	minEdgeLen = .1
 	thresMult = 1.3
 	peakInclination = (4.0/5.0)*math.pi
+	stepSize = .01
+	maxGrowLen = .09
+	minGrowLen = .006
+	cutoffDist = 1
 
 	print "INPUT PARAMS________________________"
 	print "pRadius = %1.2f in." % pRadius 
@@ -55,6 +59,8 @@ def meshDLA_MAIN():
 	world.getSpawnPlane()
 	#world.draw()
 	coral = Coral(objRef,mesh)
+	gKernel = GKernel(stepSize,maxGrowLen,minGrowLen,cutoffDist)
+	gKernel.plot()
 
 	particles = []
 	growVerts = set()
@@ -74,7 +80,7 @@ def meshDLA_MAIN():
 		#Rhino.RhinoApp.Wait()
 		scriptcontext.escape_test()
 
-		#MOVE PARTICLES
+		"""MOVE PARTICLES"""
 		for i in range(len(particles)):
 
 			p = particles[i]
@@ -85,26 +91,25 @@ def meshDLA_MAIN():
 			p.clearParticle()
 			p.drawParticle(i)
 
-		#SEARCH FOR INTERSECTIONS
-		growVerts = coral.verticesThatAte(world,particles)
-		#growVerts = verticesThatAte(world,mesh,particles)
+		"""SEARCH FOR INTERSECTIONS"""		
+		centerVerts = coral.verticesThatAte(world,particles)
 
-		#GROW THE VERTS THAT INTERSECTED
-		for gVertIdx in growVerts:
-			newPnt = coral.growVertice(gVertIdx,growLength)
-			if(newPnt >highestPoint):
-				highestPoint = newPnt
+		"""GROW REGIONS AROUND CENTERVERTS"""
+		growVerts = []
+		for centerIdx in centerVerts:
+			growVerts = growVerts + coral.assignGrowIdxs(centerIdx,gKernel)
 
-			coral.subdivideLongEdges(maxEdgeLength)
-			coral.updateNormals()
-			
+		maxZ = coral.growAll(growVerts,gKernel)
+		if(maxZ >highestPoint): highestPoint = maxZ
 
-		#COLLAPSE SHORT EDGES
+		"""SUBDIVIDE LONG EDGES"""
+		coral.subdivideLongEdges(maxEdgeLength)
+
+		"""COLLAPSE SHORT EDGES"""
 		didCollapse = coral.collapseShortEdges(minEdgeLen)
-		if(didCollapse):
-			coral.updateNormals()
+		coral.updateNormals()
 
-		#MOVE TOP OF BOUND BOX`
+		"""MOVE TOP OF BOUND BOX"""
 		if(highestPoint>prevHighestPoint):
 			world.moveTop(highestPoint,pRadius,thresMult)
 			world.reDraw()
@@ -177,18 +182,57 @@ class Coral:
 		return newLoc.Z
 		#scriptcontext.doc.Objects.Replace(objRef, mesh)
 
-
-	def growRegion(self,idxCenter,growLen,maxDist):
-
+	def assignGrowIdxs(self,idxCenter,gKernel):
 		mesh = self.mesh
-		searchedVerts = []
+		cutoffDist = gKernel.cutoffDist
+		stepSize = gKernel.stepSize
 
-		#???def searchNeighbors(idxCenter)
+		tVertIdxRoot = mesh.TopologyVertices.TopologyVertexIndex(idxCenter)
+		conVertsIdx = mesh.Vertices.GetConnectedVertices(idxCenter)
+		growVerts = []
 
-		def lenBetweenTVerts(tVertIdx1,tVertIdx2):
-			p1 = mesh.TopologyVertices(tVertIdx1)
-			p2 = mesh.TopologyVertices(tVertIdx2)
+		def lenBetweenTVerts(tVertIdx1,tVertIdx2,mesh):
+			p1 = mesh.TopologyVertices[tVertIdx1]
+			p2 = mesh.TopologyVertices[tVertIdx2]
 			return p1.DistanceTo(p2)
+
+		for i in range(conVertsIdx.Length):
+			idx = conVertsIdx[i]
+			if(idx != idxCenter):
+				tVertIdx = mesh.TopologyVertices.TopologyVertexIndex(idx)
+				dist = lenBetweenTVerts(tVertIdxRoot,tVertIdx,mesh)
+				lookUpIdx = int(round(dist/stepSize))
+				#distStr = "d:%1.2f,i:%d"%(dist,lookUpIdx)
+				#rs.AddTextDot(distStr, mesh.Vertices[idx])
+				if(dist<cutoffDist):
+					growVerts.append([idx,lookUpIdx])
+			else:
+				growVerts.append([idx,0])
+
+		
+
+		return growVerts
+
+
+	def growAll(self,growVerts,gKernel):
+		mesh = self.mesh
+		maxZ = 0
+		for i in range(len(growVerts)):
+			vertIdx = growVerts[i][0]
+			kernelIdx = growVerts[i][1]
+
+			vert = mesh.Vertices[vertIdx]
+			vertNormal = mesh.Normals[vertIdx]
+			growLen =  gKernel.gaussKernel[kernelIdx]
+			growVec = vertNormal.Multiply(vertNormal,growLen)
+			newLoc = rs.VectorAdd(vert,growVec)
+			if(newLoc.Z>maxZ): maxZ = newLoc.Z
+
+			mesh.Vertices.SetVertex(vertIdx,newLoc.X,newLoc.Y,newLoc.Z)
+		return maxZ
+
+
+		
 
 
 	def collapseShortEdges(self,minEdgeLen):
