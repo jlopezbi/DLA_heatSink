@@ -3,9 +3,9 @@
 #use R-tree to search for points close enough to vertices
 
 import rhinoscriptsyntax as rs
-import random
-import math
-import time
+import random, math, time
+#import math
+#import time
 import Rhino
 import scriptcontext
 import System.Guid
@@ -24,17 +24,21 @@ def meshDLA_MAIN():
 	filter = Rhino.DocObjects.ObjectType.PolysrfFilter
 	rc, boxRef = Rhino.Input.RhinoGet.GetOneObject("select boundingBox (polySrf)",False,filter)
 	if not boxRef or rc!=Rhino.Commands.Result.Success: return rc
-		
-	
 
-	pRadius = .4
+	"""INITIALIZE WORLD, CORAL"""
+	world = World(boxRef)
+	world.getSpawnPlane()
+	coral = Coral(objRef,mesh)
+
+	pRadius = .2
 	speed = pRadius*.333
 	nParticles =25
-	timeSteps = 4000
+	timeSteps = 1000
 	growLength = .07
 	feedLength = .01
-	maxEdgeLength = .6355
-	minEdgeLen = .1
+	maxEdgeLength = coral.getAvgEdgeLen()
+	ratioMaxMin = .33
+	minEdgeLen = maxEdgeLength*ratioMaxMin
 	thresMult = 1.3
 	peakInclination = (4.0/5.0)*math.pi
 	stepSize = .01
@@ -43,22 +47,22 @@ def meshDLA_MAIN():
 	cutoffDist = 1
 
 	print "INPUT PARAMS________________________"
-	print "pRadius = %1.2f in." % pRadius 
+	print "pRadius = %1.2fin." % pRadius 
 	print "nParticles = " +str(nParticles)
-	print "timeSteps(ts) = " +str(timeSteps)
-	print "speed = %0.2f in./ts" % speed
-	print "growLength = %0.2f in." % growLength
-	print "maxEdgeLength = %0.2f in." % maxEdgeLength
-	print "minEdgeLen = %0.2f in." % minEdgeLen
-	print "thresMult = " + str(thresMult)
 	peakIncDeg = peakInclination*180.0/math.pi
 	print "peakInclination = %1.1fdeg" % peakIncDeg
+	print "timeSteps(ts) = " +str(timeSteps)
+	print "speed = %0.2f in./ts" % speed
+	print "	maxGrowLen = %1.2fin." % maxGrowLen
+	print "	minGrowLen = %1.2fin." % minGrowLen
+	print "	cutoffDist = %1.2fin." % cutoffDist
+
+	print "maxEdgeLength(Avg) = %0.2f in." % maxEdgeLength
+	print "minEdgeLen = %0.2f in." % minEdgeLen
+	print "thresMult = " + str(thresMult)
 	print "____________________________________"
 
-	world = World(boxRef,pRadius)
-	world.getSpawnPlane()
-	#world.draw()
-	coral = Coral(objRef,mesh)
+	
 	gKernel = GKernel(stepSize,maxGrowLen,minGrowLen,cutoffDist)
 	gKernel.plot()
 
@@ -184,8 +188,9 @@ class Coral:
 
 	def assignGrowIdxs(self,idxCenter,gKernel):
 		mesh = self.mesh
-		cutoffDist = gKernel.cutoffDist
+		#cutoffDist = gKernel.cutoffDist
 		stepSize = gKernel.stepSize
+		kernelLen = len(gKernel.gaussKernel)
 
 		tVertIdxRoot = mesh.TopologyVertices.TopologyVertexIndex(idxCenter)
 		conVertsIdx = mesh.Vertices.GetConnectedVertices(idxCenter)
@@ -204,7 +209,7 @@ class Coral:
 				lookUpIdx = int(round(dist/stepSize))
 				#distStr = "d:%1.2f,i:%d"%(dist,lookUpIdx)
 				#rs.AddTextDot(distStr, mesh.Vertices[idx])
-				if(dist<cutoffDist):
+				if(lookUpIdx<kernelLen):
 					growVerts.append([idx,lookUpIdx])
 			else:
 				growVerts.append([idx,0])
@@ -239,8 +244,9 @@ class Coral:
 		mesh = self.mesh
 		collapsedAnEdge = False
 		for i in range(mesh.TopologyEdges.Count):
-			edgeLine = mesh.TopologyEdges.EdgeLine(i)
-			length = edgeLine.Length
+			# edgeLine = mesh.TopologyEdges.EdgeLine(i)
+			# length = edgeLine.Length
+			length = self.getLenEdge(i)
 			if(length<minEdgeLen):
 				mesh.TopologyEdges.CollapseEdge(i)
 				collapsedAnEdge = True
@@ -295,6 +301,19 @@ class Coral:
 
 					foundEdgeIdx = mesh.TopologyEdges.GetEdgeIndex(tCenterVertIdx,tNeighVertIdx)
 					mesh.TopologyEdges.SplitEdge(foundEdgeIdx,.5)
+
+	def getAvgEdgeLen(self):
+		mesh = self.mesh
+		totLen = 0
+		for i in range(mesh.TopologyEdges.Count):
+			totLen += self.getLenEdge(i)
+		return totLen/mesh.TopologyEdges.Count
+
+	def getLenEdge(self, edgeIdx):
+		mesh = self.mesh
+		edgeLine = mesh.TopologyEdges.EdgeLine(edgeIdx)
+		return edgeLine.Length 
+
 
 
 	def displayGrowNormals(self,displayLength):
@@ -373,7 +392,7 @@ class World:
 	corners = None
 	lineIDs = None
 
-	def __init__(self,inputBoxRef,pRadius):
+	def __init__(self,inputBoxRef):
 		self.inputBoxID = inputBoxRef.ObjectId
 		rs.HideObject(self.inputBoxID)
 	
