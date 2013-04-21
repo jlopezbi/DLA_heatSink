@@ -28,7 +28,7 @@ def meshDLA_MAIN():
 	pRadius = .4
 	speed = pRadius*.333
 	nParticles =25
-	timeSteps = 3000
+	timeSteps = 100
 	growLength = .07
 	feedLength = .01
 	maxEdgeLength = .6355
@@ -274,114 +274,48 @@ class Coral:
 		self.mesh.Normals.UnitizeNormals()
 		self.mesh.Compact()
 
-#-----------------------------------------------------------------------
+#---------------------------GAUSS KERNEL----------------------------
+
+class GKernel:
+	gaussKernel = []
+	def __init__(self,stepSize,maxGrowLen,minGrowLen,cutoffDist):
+		self.stepSize = stepSize
+		self.maxGrowLen = maxGrowLen
+		self.minGrowLen = minGrowLen
+		self.cutoffDist = cutoffDist
+		self.gaussKernel = self.createGaussKernel()
 
 
-def verticesThatAte(world,mesh,particles):
-	tree = Rhino.Geometry.RTree()
+	def createGaussKernel(self):
+		stepSize = self.stepSize
+		maxGrowLen = self.maxGrowLen
+		minGrowLen = self.minGrowLen
+		cutoffDist = self.cutoffDist
 
-	for i,vertex in enumerate(mesh.Vertices):
-		tree.Insert(vertex, i)
+		def gaussFunc(x,a,b,c):
+			return a*math.exp(-((x-b)**2.0)/(2.0*(c**2.0)))
 
-	def SearchCallback(sender, data):
-		sData = data.Tag
-		sData.vertices.add(data.Id)
-		sData.addedVert = True
+		gaussKernel = []
 
-	class SearchData:
+		a = maxGrowLen
+		b = 0
+		c = math.sqrt(-(cutoffDist**2.0)/math.log(minGrowLen/maxGrowLen))
 
-		def __init__(self):
-			self.vertices = set()
-			self.addedVert = False
+		x = 0
+		y = maxGrowLen
+		assert(y==gaussFunc(0,a,b,c)), "problems with gaussFunc"
+		while(x<cutoffDist):
+			y = gaussFunc(x,a,b,c)
+			gaussKernel.append(y)
 
-	sData = SearchData()
-			
-	for particle in particles:
-		x = particle.posVec.X
-		y = particle.posVec.Y
-		z = particle.posVec.Z
-		sphere = particle.sphere
-		tree.Search(sphere, SearchCallback, sData)
-		if(sData.addedVert):
-			particle.setToSpawnLoc(world)
-		sData.addedVert = False
-		
+			x +=stepSize
+		return gaussKernel
 
-
-	return sData.vertices
-
-def growVertice(objRef, mesh,idx,growLength):
-	vert = mesh.Vertices[idx]
-	vertNormal = mesh.Normals[idx]
-	growVec = vertNormal.Multiply(vertNormal,growLength)
-	newLoc = rs.VectorAdd(vert,growVec)
-	
-	#normalArrow = rs.AddLine(vert,newLoc)
-	#rs.CurveArrows(normalArrow,2)
-	
-	mesh.Vertices.SetVertex(idx,newLoc.X,newLoc.Y,newLoc.Z)
-	return newLoc.Z
-	#scriptcontext.doc.Objects.Replace(objRef, mesh)
-
-def collapseShortEdges(mesh,minEdgeLen):
-	collapsedAnEdge = False
-	for i in range(mesh.TopologyEdges.Count):
-		edgeLine = mesh.TopologyEdges.EdgeLine(i)
-		length = edgeLine.Length
-		if(length<minEdgeLen):
-			mesh.TopologyEdges.CollapseEdge(i)
-			collapsedAnEdge = True
-	if collapsedAnEdge:
-		print "collapsed and edge!"
-	return collapsedAnEdge
-		#scriptcontext.doc.Objects.Replace(objRef,mesh)
-
-def subdivideLongNeighbors(objRef, mesh,idx,maxEdgeLength):
-	#minLength = lengthRange[0]
-	#maxLength = lengthRange[1]
-
-	vert = mesh.Vertices[idx]
-	#rs.AddTextDot("v",vert)
-	connectedVertsIdx = mesh.Vertices.GetConnectedVertices(idx)	
-	
-
-	tVertIdx = mesh.TopologyVertices.TopologyVertexIndex(idx)
-	tVert = mesh.TopologyVertices[tVertIdx]
-	assert (tVert==vert), "topolgy vert and vert not the same!"
-
-
-	for neighVertIdx in connectedVertsIdx:
-		if(neighVertIdx !=idx):
-
-			
-			tCenterVertIdx = mesh.TopologyVertices.TopologyVertexIndex(idx)
-			tCenterVert = mesh.TopologyVertices[tCenterVertIdx]
-
-			tNeighVertIdx = mesh.TopologyVertices.TopologyVertexIndex(neighVertIdx)
-			tNeighVert = mesh.TopologyVertices[tNeighVertIdx]
-			#rs.AddSphere(tNeighVert,r)
-			dist = rs.Distance(tCenterVert,tNeighVert)
-			strDist = "%.2f" % dist
-
-			if(dist >= maxEdgeLength):
-
-				foundEdgeIdx = mesh.TopologyEdges.GetEdgeIndex(tCenterVertIdx,tNeighVertIdx)
-				mesh.TopologyEdges.SplitEdge(foundEdgeIdx,.5)
-
-	#scriptcontext.doc.Objects.Replace(objRef,mesh)
-
-def displayGrowNormals(mesh,displayLength):
-	for i in range(mesh.Vertices.Count):
-		vertNormal = mesh.Normals[i]
-		feedVec = vertNormal.Multiply(vertNormal,displayLength)
-		vert = mesh.Vertices[i]
-		newLoc = rs.VectorAdd(vert,feedVec)
-		feedLine = rs.AddLine(vert,newLoc)
-
-def displayVertices(mesh):
-	for i in range(mesh.Vertices.Count):
-		vert = mesh.Vertices[i]
-		rs.AddPoint(vert)
+	def plot(self):
+		for i in range(len(self.gaussKernel)):
+			x = i*self.stepSize
+			y = self.gaussKernel[i]
+			rs.AddPoint(x,y,0)
 
 
 
