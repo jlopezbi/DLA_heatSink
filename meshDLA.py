@@ -11,14 +11,16 @@ import scriptcontext
 import System.Guid
 
 def meshDLA_MAIN():
-
+	
+	"""GET MESH"""
 	filter = Rhino.DocObjects.ObjectType.Mesh
 	rc, objRef = Rhino.Input.RhinoGet.GetOneObject("select seedMesh",False,filter)
 	if not objRef or rc!=Rhino.Commands.Result.Success: return rc
 	mesh  = objRef.Mesh()
 	if not mesh: return
 	mesh.Compact()
-	
+
+	"""GET POLYSRF BOX"""
 	filter = Rhino.DocObjects.ObjectType.PolysrfFilter
 	rc, boxRef = Rhino.Input.RhinoGet.GetOneObject("select boundingBox (polySrf)",False,filter)
 	if not boxRef or rc!=Rhino.Commands.Result.Success: return rc
