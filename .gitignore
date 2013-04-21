@@ -28,6 +28,7 @@ nodeCreator.py
 orientGenerator.py
 samples
 testEsc.py
+testHeap.py
 testPolyLine.py
 testRhinoInput.py
 .nodeCreator.py.swp
