@@ -4,11 +4,10 @@
 
 import rhinoscriptsyntax as rs
 import random, math, time
-#import math
-#import time
 import Rhino
 import scriptcontext
 import System.Guid
+import System.Drawing
 
 def meshDLA_MAIN():
 	
@@ -24,26 +23,26 @@ def meshDLA_MAIN():
 	filter = Rhino.DocObjects.ObjectType.PolysrfFilter
 	rc, boxRef = Rhino.Input.RhinoGet.GetOneObject("select boundingBox (polySrf)",False,filter)
 	if not boxRef or rc!=Rhino.Commands.Result.Success: return rc
+	#scriptcontext.doc.Objects.Hide(boxRef,True)
 
 	"""INITIALIZE WORLD, CORAL"""
 	world = World(boxRef)
 	world.getSpawnPlane()
+	world.hide()
 	coral = Coral(objRef,mesh)
 
-	pRadius = .2
-	speed = pRadius*.333
-	nParticles =25
-	timeSteps = 1000
-	growLength = .07
-	feedLength = .01
+	pRadius = .4
+	speed = .05
+	nParticles = 30
+	timeSteps = 500
 	maxEdgeLength = coral.getAvgEdgeLen()
 	ratioMaxMin = .33
 	minEdgeLen = maxEdgeLength*ratioMaxMin
 	thresMult = 1.3
-	peakInclination = (4.0/5.0)*math.pi
+	peakInclination = (3.0/4.0)*math.pi
 	stepSize = .01
-	maxGrowLen = .09
-	minGrowLen = .006
+	maxGrowLen = .06
+	minGrowLen = .001
 	cutoffDist = 1
 
 	print "INPUT PARAMS________________________"
@@ -64,7 +63,7 @@ def meshDLA_MAIN():
 
 	
 	gKernel = GKernel(stepSize,maxGrowLen,minGrowLen,cutoffDist)
-	gKernel.plot()
+	#gKernel.plot()
 
 	particles = []
 	growVerts = set()
@@ -79,7 +78,13 @@ def meshDLA_MAIN():
 		particles.append(p)
 
 	#RUN SIMIULATION
+	ts = 0 
+	tsSave = 100
 	for t in range(timeSteps):
+		ts += 1
+		if(ts>=tsSave):
+			coral.save()
+			ts = 0
 		#time.sleep(0.01*10**-8)
 		#Rhino.RhinoApp.Wait()
 		scriptcontext.escape_test()
@@ -88,10 +93,10 @@ def meshDLA_MAIN():
 		for i in range(len(particles)):
 
 			p = particles[i]
-			p.moveParticle(speed,peakInclination)
+			p.moveParticle(speed,peakInclination,world)
 
-			if not p.inBounds(world):
-				p.setToSpawnLoc(world)
+			#if not p.inBounds(world):
+			#	p.setToSpawnLoc(world)
 			p.clearParticle()
 			p.drawParticle(i)
 
@@ -101,7 +106,7 @@ def meshDLA_MAIN():
 		"""GROW REGIONS AROUND CENTERVERTS"""
 		growVerts = []
 		for centerIdx in centerVerts:
-			growVerts = growVerts + coral.assignGrowIdxs(centerIdx,gKernel)
+			growVerts = growVerts + coral.assignGrowIdxs(centerIdx,gKernel,centerVerts)
 
 		maxZ = coral.growAll(growVerts,gKernel)
 		if(maxZ >highestPoint): highestPoint = maxZ
@@ -112,11 +117,12 @@ def meshDLA_MAIN():
 		"""COLLAPSE SHORT EDGES"""
 		didCollapse = coral.collapseShortEdges(minEdgeLen)
 		coral.updateNormals()
+		coral.mesh.Weld(math.pi)
 
 		"""MOVE TOP OF BOUND BOX"""
 		if(highestPoint>prevHighestPoint):
 			world.moveTop(highestPoint,pRadius,thresMult)
-			world.reDraw()
+			#world.reDraw()
 			world.getSpawnPlane()
 		prevHighestPoint = highestPoint
 
@@ -137,6 +143,7 @@ class Coral:
 		mesh.Normals.ComputeNormals()
 		mesh.Normals.UnitizeNormals()
 		mesh.Compact()
+		#mesh.Weld(math.pi)
 
 		self.objRef = objRef
 		self.mesh = mesh
@@ -178,15 +185,14 @@ class Coral:
 		vertNormal = mesh.Normals[idx]
 		growVec = vertNormal.Multiply(vertNormal,growLength)
 		newLoc = rs.VectorAdd(vert,growVec)
-		
-		#normalArrow = rs.AddLine(vert,newLoc)
+		normalArrow = rs.AddLine(vert,newLoc)
 		#rs.CurveArrows(normalArrow,2)
 		
 		mesh.Vertices.SetVertex(idx,newLoc.X,newLoc.Y,newLoc.Z)
 		return newLoc.Z
 		#scriptcontext.doc.Objects.Replace(objRef, mesh)
 
-	def assignGrowIdxs(self,idxCenter,gKernel):
+	def assignGrowIdxs(self,idxCenter,gKernel,centerVerts):
 		mesh = self.mesh
 		#cutoffDist = gKernel.cutoffDist
 		stepSize = gKernel.stepSize
@@ -201,9 +207,11 @@ class Coral:
 			p2 = mesh.TopologyVertices[tVertIdx2]
 			return p1.DistanceTo(p2)
 
+		centerColor = System.Drawing.Color.FromArgb(164,223,45)
+
 		for i in range(conVertsIdx.Length):
 			idx = conVertsIdx[i]
-			if(idx != idxCenter):
+			if(idx != idxCenter and idx not in centerVerts):
 				tVertIdx = mesh.TopologyVertices.TopologyVertexIndex(idx)
 				dist = lenBetweenTVerts(tVertIdxRoot,tVertIdx,mesh)
 				lookUpIdx = int(round(dist/stepSize))
@@ -212,6 +220,7 @@ class Coral:
 				if(lookUpIdx<kernelLen):
 					growVerts.append([idx,lookUpIdx])
 			else:
+				#mesh.VertexColors.SetColor(idx,centerColor)
 				growVerts.append([idx,0])
 
 		
@@ -339,6 +348,9 @@ class Coral:
 		self.mesh.Normals.UnitizeNormals()
 		self.mesh.Compact()
 
+	def save(self):
+		scriptcontext.doc.Objects.AddMesh(self.mesh)
+
 #---------------------------GAUSS KERNEL----------------------------
 
 class GKernel:
@@ -382,8 +394,6 @@ class GKernel:
 			y = self.gaussKernel[i]
 			rs.AddPoint(x,y,0)
 
-
-
 #---------------------------WORLD----------------------------------
 class World:
 	spawnXRange = None
@@ -400,6 +410,7 @@ class World:
 		box = Rhino.Geometry.Box(self.boundBoxBetter)
 	
 		self.boxBrepID = scriptcontext.doc.Objects.AddBrep(box.ToBrep())
+		#scriptcontext.doc.Objects.Hide(self.boxBrepID,True)
 		self.corners = self.boundBoxBetter.GetCorners()
 		self.lineIDs = []
 
@@ -429,26 +440,36 @@ class World:
 			newMaxZ = highestPoint+travelZone
 			newPnt = Rhino.Geometry.Point3d(maxX,maxY,newMaxZ)
 			self.boundBoxBetter.Max = newPnt
+	def resizeFootPrint(self,coral,threshMult):
+		bboxCoral = coral.mesh.GetBoundingBox
+		pass
+
+	def checkIntersect(self,mesh):
+		boxBrepID = self.boxBrepID
+		pass
 
 
 	def reDraw(self):
 		box = Rhino.Geometry.Box(self.boundBoxBetter)
 		scriptcontext.doc.Objects.Replace(self.boxBrepID, box.ToBrep())
 
-#---------------------------Particle--------------------------------
+	def hide(self):
+		scriptcontext.doc.Objects.Hide(self.boxBrepID,True)
+
+#---------------------------PARTICLE--------------------------------
 class Particle:
 	geom = None
 	textDot = None
 	sphereID = None
 
 	def __init__(self, radius):
-		self.posVec = [0,0,0]
+		#self.posVec = [0,0,0]
 		point = Rhino.Geometry.Point3d(0,0,0)
 		self.sphere = Rhino.Geometry.Sphere(point,radius)
 		self.radius = radius
 		self.geom = [0,0] #idx 0 => point, idx 1 => sphere
 
-	def moveParticle(self,speed,peakInclination):
+	def moveParticle(self,speed,peakInclination,world):
 		inclination = random.triangular(0,peakInclination,math.pi)
 		azimuth = random.uniform(0,math.pi*2.0)
 
@@ -457,10 +478,25 @@ class Particle:
 		velZ = speed*math.cos(inclination)
 		vel = rs.VectorCreate([velX,velY,velZ],[0,0,0])
 
-		self.posVec  = rs.VectorAdd(self.posVec,vel)
-		self.sphere.Translate(vel)
-		#rs.MoveObjects(self.geom,vel)
-		#rs.MoveObject(obj,vel)
+		#self.posVec  = rs.VectorAdd(self.posVec,vel)
+		#if(self.posVec.X < world.boundBoxBetter.Min.X
+		pntPos = Rhino.Geometry.Point3d.Add(self.sphere.Center,vel)
+		if(pntPos.Z < world.boundBoxBetter.Min.Z or pntPos.Z > world.boundBoxBetter.Max.Z):
+			self.setToSpawnLoc(world)
+			return
+		elif(pntPos.X < world.boundBoxBetter.Min.X):
+			pntPos.X = world.boundBoxBetter.Max.X
+		elif(pntPos.X>world.boundBoxBetter.Max.X):
+			pntPos.X = world.boundBoxBetter.Min.X
+		elif(pntPos.Y < world.boundBoxBetter.Min.Y):
+			pntPos.Y = world.boundBoxBetter.Max.Y
+		elif(pntPos.Y>world.boundBoxBetter.Max.Y):
+			pntPos.Y = world.boundBoxBetter.Min.Y
+
+		self.sphere.Center = pntPos
+		#self.sphere.Translate(vel)
+
+
 	
 
 	def inBounds(self,world):
