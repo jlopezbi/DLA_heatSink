@@ -34,7 +34,7 @@ def meshDLA_MAIN():
 	pRadius = .4
 	speed = .05
 	nParticles = 30
-	timeSteps = 500
+	timeSteps = 2000
 	maxEdgeLength = coral.getAvgEdgeLen()
 	ratioMaxMin = .33
 	minEdgeLen = maxEdgeLength*ratioMaxMin
@@ -44,6 +44,7 @@ def meshDLA_MAIN():
 	maxGrowLen = .06
 	minGrowLen = .001
 	cutoffDist = 1
+	tsSave = 50
 
 	print "INPUT PARAMS________________________"
 	print "pRadius = %1.2fin." % pRadius 
@@ -79,11 +80,10 @@ def meshDLA_MAIN():
 
 	#RUN SIMIULATION
 	ts = 0 
-	tsSave = 100
 	for t in range(timeSteps):
 		ts += 1
 		if(ts>=tsSave):
-			coral.save()
+			coral.saveCopy()
 			ts = 0
 		#time.sleep(0.01*10**-8)
 		#Rhino.RhinoApp.Wait()
@@ -131,8 +131,10 @@ def meshDLA_MAIN():
 		
 
 	#displayGrowNormals(mesh,growLength)
+	#coral.displayLineage()
 	for particle in particles:
 		scriptcontext.doc.Objects.Hide(particle.sphereID,True)
+	scriptcontext.doc.Views.Redraw()
 
 
 
@@ -147,6 +149,8 @@ class Coral:
 
 		self.objRef = objRef
 		self.mesh = mesh
+		self.lineage = []
+		self.lineage.append(self.mesh.Duplicate())
 
 	def verticesThatAte(self, world, particles):
 		mesh = self.mesh
@@ -348,8 +352,27 @@ class Coral:
 		self.mesh.Normals.UnitizeNormals()
 		self.mesh.Compact()
 
-	def save(self):
-		scriptcontext.doc.Objects.AddMesh(self.mesh)
+	def saveCopy(self):
+		#scriptcontext.doc.Objects.AddMesh(self.mesh)
+		print "saved copy"
+		self.lineage.append(self.mesh.Duplicate())
+
+
+	def displayLineage(self):
+		bboxMesh = self.mesh.GetBoundingBox(False)
+		spacing = max(bboxMesh.Max.X-bboxMesh.Min.X,bboxMesh.Max.Y-bboxMesh.Min.Y)
+		print "nSaved: %d" % len(self.lineage)
+
+		for i in range(len(self.lineage)):
+			tVec = Rhino.Geometry.Vector3d(0,i*spacing,0)
+			bloop = self.lineage[i]
+			print "type of lineage[%d]:" %i + str(type(bloop))
+			#if(i!=0):
+			bloop.Translate(tVec)
+			if scriptcontext.doc.Objects.AddMesh(bloop) == System.Guid.Empty:
+				print "addMesh fail: %d" %i
+			#scriptcontext.doc.Objects.AddMesh(bloop)
+	
 
 #---------------------------GAUSS KERNEL----------------------------
 
