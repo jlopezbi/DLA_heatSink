@@ -19,25 +19,21 @@ def meshDLA_MAIN():
 	if not mesh: return
 	mesh.Compact()
 
-	"""GET POLYSRF BOX"""
+	"""GET POLYSRF BOX
 	filter = Rhino.DocObjects.ObjectType.PolysrfFilter
 	rc, boxRef = Rhino.Input.RhinoGet.GetOneObject("select boundingBox (polySrf)",False,filter)
 	if not boxRef or rc!=Rhino.Commands.Result.Success: return rc
 	#scriptcontext.doc.Objects.Hide(boxRef,True)
+	"""
 
-	"""INITIALIZE WORLD, CORAL"""
-	world = World(boxRef)
-	world.getSpawnPlane()
-	world.hide()
-	coral = Coral(objRef,mesh)
 
-	pRadius = .4
+	pRadius = .3
 	speed = .05
-	nParticles = 30
-	timeSteps = 2000
-	maxEdgeLength = coral.getAvgEdgeLen()
+	nParticles = 20
+	timeSteps = 100
+	#maxEdgeLength = coral.getAvgEdgeLen()
 	ratioMaxMin = .33
-	minEdgeLen = maxEdgeLength*ratioMaxMin
+	#minEdgeLen = maxEdgeLength*ratioMaxMin
 	thresMult = 1.3
 	peakInclination = (3.0/4.0)*math.pi
 	stepSize = .01
@@ -45,6 +41,16 @@ def meshDLA_MAIN():
 	minGrowLen = .001
 	cutoffDist = 1
 	tsSave = 50
+
+	threshDist = pRadius*1.6
+
+	"""INITIALIZE WORLD, CORAL"""
+	world = World(mesh)
+	#world.hide()
+	coral = Coral(objRef,mesh,ratioMaxMin)
+	world.resize(coral,threshDist)
+	world.getSpawnPlane()
+	world.reDraw()
 
 	print "INPUT PARAMS________________________"
 	print "pRadius = %1.2fin." % pRadius 
@@ -57,8 +63,8 @@ def meshDLA_MAIN():
 	print "	minGrowLen = %1.2fin." % minGrowLen
 	print "	cutoffDist = %1.2fin." % cutoffDist
 
-	print "maxEdgeLength(Avg) = %0.2f in." % maxEdgeLength
-	print "minEdgeLen = %0.2f in." % minEdgeLen
+	print "maxEdgeLength(Avg) = %0.2f in." % coral.maxEdgeLength
+	print "minEdgeLen = %0.2f in." % coral.minEdgeLen
 	print "thresMult = " + str(thresMult)
 	print "____________________________________"
 
@@ -71,21 +77,21 @@ def meshDLA_MAIN():
 	prevHighestPoint = 0;
 	highestPoint = 0
 
-	#INITIALIZE PARTICLES
+	"""INITIALIZE PARTICLES"""
 	for i in range(nParticles):
 		p = Particle(pRadius)
 		p.setToSpawnLoc(world)
 		p.drawParticle(i)
 		particles.append(p)
 
-	#RUN SIMIULATION
+	"""RUN SIMIULATION"""
 	ts = 0 
 	for t in range(timeSteps):
 		ts += 1
 		if(ts>=tsSave):
 			coral.saveCopy()
 			ts = 0
-		#time.sleep(0.01*10**-8)
+		#time.sleep(0.1)
 		#Rhino.RhinoApp.Wait()
 		scriptcontext.escape_test()
 
@@ -112,26 +118,37 @@ def meshDLA_MAIN():
 		if(maxZ >highestPoint): highestPoint = maxZ
 
 		"""SUBDIVIDE LONG EDGES"""
-		coral.subdivideLongEdges(maxEdgeLength)
+		coral.subdivideLongEdges()
 
 		"""COLLAPSE SHORT EDGES"""
-		didCollapse = coral.collapseShortEdges(minEdgeLen)
+		didCollapse = coral.collapseShortEdges()
 		coral.updateNormals()
 		coral.mesh.Weld(math.pi)
+		
 
 		"""MOVE TOP OF BOUND BOX"""
+		coral.reDraw()
+		# bbox = coral.objRef.Mesh().GetBoundingBox(True)
+		# scriptcontext.doc.Objects.AddBrep(bbox.ToBrep())
+		
+		world.resize(coral,threshDist)
+		world.getSpawnPlane()
+		world.reDraw()
+
+		"""
 		if(highestPoint>prevHighestPoint):
 			world.moveTop(highestPoint,pRadius,thresMult)
 			#world.reDraw()
 			world.getSpawnPlane()
 		prevHighestPoint = highestPoint
+		"""
 
-		coral.reDraw()
+		
 
 		
 
 	#displayGrowNormals(mesh,growLength)
-	#coral.displayLineage()
+	#..coral.displayLineage()
 	for particle in particles:
 		scriptcontext.doc.Objects.Hide(particle.sphereID,True)
 	scriptcontext.doc.Views.Redraw()
@@ -141,7 +158,7 @@ def meshDLA_MAIN():
 
 #---------------------------CORAL----------------------------------
 class Coral:
-	def __init__(self,objRef,mesh):
+	def __init__(self,objRef,mesh,ratioMaxMin):
 		mesh.Normals.ComputeNormals()
 		mesh.Normals.UnitizeNormals()
 		mesh.Compact()
@@ -149,6 +166,14 @@ class Coral:
 
 		self.objRef = objRef
 		self.mesh = mesh
+
+		self.avgEdgeLen = self.getAvgEdgeLen()
+		self.maxEdgeLength = self.avgEdgeLen
+		self.minEdgeLen = self.avgEdgeLen*ratioMaxMin
+
+		self.subdivideLongEdges()
+		self.collapseShortEdges()
+
 		self.lineage = []
 		self.lineage.append(self.mesh.Duplicate())
 
@@ -247,14 +272,12 @@ class Coral:
 			if(newLoc.Z>maxZ): maxZ = newLoc.Z
 
 			mesh.Vertices.SetVertex(vertIdx,newLoc.X,newLoc.Y,newLoc.Z)
-		return maxZ
+		return maxZ		
 
 
-		
-
-
-	def collapseShortEdges(self,minEdgeLen):
+	def collapseShortEdges(self):
 		mesh = self.mesh
+		minEdgeLen = self.minEdgeLen
 		collapsedAnEdge = False
 		for i in range(mesh.TopologyEdges.Count):
 			# edgeLine = mesh.TopologyEdges.EdgeLine(i)
@@ -263,14 +286,15 @@ class Coral:
 			if(length<minEdgeLen):
 				mesh.TopologyEdges.CollapseEdge(i)
 				collapsedAnEdge = True
-		if collapsedAnEdge:
-			print "collapsed and edge!"
+		# if collapsedAnEdge:
+		# 	print "collapsed and edge!"
 		return collapsedAnEdge
 
-	def subdivideLongEdges(self,maxEdgeLength):
+	def subdivideLongEdges(self):
 		#iterate through all vertices of mesh and subdivide if too long. slower than
 		#subdividLongNeighbors, but easier to write
 		mesh = self.mesh
+		maxEdgeLength = self.maxEdgeLength
 		edges = mesh.TopologyEdges
 		nEdges = mesh.TopologyEdges.Count
 		for i in range(nEdges):
@@ -280,7 +304,6 @@ class Coral:
 			lenEdge =  p1.DistanceTo(p2)
 			if(lenEdge >= maxEdgeLength):
 				mesh.TopologyEdges.SplitEdge(i,.5) 
-
 
 	def subdivideLongNeighbors(self,idx,maxEdgeLength):
 		mesh = self.mesh
@@ -320,7 +343,8 @@ class Coral:
 		totLen = 0
 		for i in range(mesh.TopologyEdges.Count):
 			totLen += self.getLenEdge(i)
-		return totLen/mesh.TopologyEdges.Count
+		self.avgEdgeLen = totLen/mesh.TopologyEdges.Count
+		return self.avgEdgeLen
 
 	def getLenEdge(self, edgeIdx):
 		mesh = self.mesh
@@ -373,7 +397,6 @@ class Coral:
 				print "addMesh fail: %d" %i
 			#scriptcontext.doc.Objects.AddMesh(bloop)
 	
-
 #---------------------------GAUSS KERNEL----------------------------
 
 class GKernel:
@@ -422,19 +445,33 @@ class World:
 	spawnXRange = None
 	spawnYRange = None
 	spawnZ = None
-	corners = None
 	lineIDs = None
 
-	def __init__(self,inputBoxRef):
-		self.inputBoxID = inputBoxRef.ObjectId
-		rs.HideObject(self.inputBoxID)
+	def __init__(self,mesh):
+		#self.inputBoxID = inputBoxRef.ObjectId
+		#rs.HideObject(self.inputBoxID)
 	
-		self.boundBoxBetter = inputBoxRef.Surface().GetBoundingBox(True)
+		#self.boundBoxBetter = inputBoxRef.Surface().GetBoundingBox(True)
+		self.boundBoxBetter = mesh.GetBoundingBox(True)
+		#scriptcontext.doc.Objects.AddBrep(Rhino.Geometry.Box(self.boundBoxBetter).ToBrep())
+		
+
+		# maxX = self.boundBoxBetter.Max.X + padding
+		# maxY = self.boundBoxBetter.Max.Y + padding
+		# maxZ = self.boundBoxBetter.Max.Z + padding
+		# minX = self.boundBoxBetter.Min.X - padding
+		# minY = self.boundBoxBetter.Min.Y - padding
+		# minZ = self.boundBoxBetter.Min.Z
+
+		# newMax = Rhino.Geometry.Point3d(maxX,maxY,maxZ)
+		# newMin = Rhino.Geometry.Point3d(minX,minY,minZ)
+		# self.boundBoxBetter.Max = newMax
+		# self.boundBoxBetter.Min = newMin
+
 		box = Rhino.Geometry.Box(self.boundBoxBetter)
 	
 		self.boxBrepID = scriptcontext.doc.Objects.AddBrep(box.ToBrep())
 		#scriptcontext.doc.Objects.Hide(self.boxBrepID,True)
-		self.corners = self.boundBoxBetter.GetCorners()
 		self.lineIDs = []
 
 		print "world created"
@@ -463,9 +500,33 @@ class World:
 			newMaxZ = highestPoint+travelZone
 			newPnt = Rhino.Geometry.Point3d(maxX,maxY,newMaxZ)
 			self.boundBoxBetter.Max = newPnt
-	def resizeFootPrint(self,coral,threshMult):
-		bboxCoral = coral.mesh.GetBoundingBox
-		pass
+
+
+	def resize(self,coral,threshDist):
+		mesh = coral.objRef.Mesh() # was not updating bounding box when using coral.mesh
+		bboxCoral = mesh.GetBoundingBox(True)
+		#scriptcontext.doc.Objects.AddBrep(bboxCoral.ToBrep())
+		if not bboxCoral.IsValid:
+			print "bbox mesh not Valid!"
+
+		coralMin = bboxCoral.Min
+		coralMax = bboxCoral.Max
+		worldMin = self.boundBoxBetter.Min
+		worldMax = self.boundBoxBetter.Max
+
+		minOffset = Rhino.Geometry.Vector3d(threshDist,threshDist,0)
+		maxOffset = Rhino.Geometry.Vector3d(threshDist,threshDist,threshDist)
+
+		threshMin = worldMin + minOffset
+		threshMax = worldMax - maxOffset
+		
+		newWorldMin = worldMin + (coralMin-threshMin)
+		newWorldMax = worldMax + (coralMax-threshMax)
+		#print "nwMax:" + str(type(newWorldMax))
+		self.boundBoxBetter.Min = newWorldMin
+		self.boundBoxBetter.Max = newWorldMax
+
+
 
 	def checkIntersect(self,mesh):
 		boxBrepID = self.boxBrepID
