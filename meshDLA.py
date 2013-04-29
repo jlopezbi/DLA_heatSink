@@ -30,20 +30,20 @@ def meshDLA_MAIN():
 	pRadius = .3
 	speed = .05
 	nParticles = 25
-	timeSteps = 100
+	timeSteps = 300
 	ratioMaxMin = .33
 	thresMult = 1.3
-	peakInclination = (.68)*math.pi
+	peakInclination = (.6)*math.pi
 	stepSize = .01
 	maxGrowLen = .06
 	minGrowLen = .001
 	cutoffDist = 1
 	tsSave = 50
-	showParticles = False
+	showParticles = True
 	showWorld = False
 
 
-	threshDist = pRadius*1.6
+	threshDist = pRadius*1.4
 
 	"""INITIALIZE WORLD, CORAL"""
 	world = World(mesh)
@@ -82,7 +82,7 @@ def meshDLA_MAIN():
 	for i in range(nParticles):
 		p = Particle(pRadius)
 		p.setToSpawnLoc(world)
-		#p.drawParticle(i)
+		if showParticles: p.drawParticle(i)
 		particles.append(p)
 
 	"""RUN SIMIULATION"""
@@ -93,7 +93,7 @@ def meshDLA_MAIN():
 		# 	coral.saveCopy()
 		# 	ts = 0
 
-		time.sleep(0.3)
+		#time.sleep(0.3)
 		Rhino.RhinoApp.Wait()
 		scriptcontext.escape_test()
 
@@ -108,17 +108,16 @@ def meshDLA_MAIN():
 		centerVerts = coral.verticesThatAte(world,particles)
 
 		"""GROW REGIONS AROUND CENTERVERTS"""
-		growVerts = []
-		for centerIdx in centerVerts:
-			growVerts = growVerts + coral.assignGrowIdxs(centerIdx,gKernel,centerVerts)
-		
-		maxZ = coral.growAll(growVerts,gKernel) 
+		growVerts = coral.getGrowData(gKernel,centerVerts)
+		coral.grow(growVerts) 
 
 		"""SUBDIVIDE LONG EDGES"""
 		coral.subdivideLongEdges()
 
 		"""COLLAPSE SHORT EDGES"""
 		didCollapse = coral.collapseShortEdges()
+
+		"""UPDATE MESH"""
 		coral.updateNormals()
 		coral.mesh.Weld(math.pi)
 		
@@ -127,13 +126,13 @@ def meshDLA_MAIN():
 		coral.reDraw()
 
 		
-		coral.colorVerts(growVerts,gKernel)
+		#coral.colorVerts(growVerts,gKernel)
 
 		world.resize(coral,threshDist)
 		world.getSpawnPlane()
 		if showWorld: world.reDraw()
 		
-	rs.AddSphere((0,0,0),.3)
+	rs.AddTextDot("done", (0,0,0))
 	#displayGrowNormals(mesh,growLength)
 	#..coral.displayLineage()
 
@@ -192,27 +191,15 @@ class Coral:
 
 		return sData.vertices
 
-	def growVertice(self,idx,growLength):
-		mesh = self.mesh
-		vert = mesh.Vertices[idx]
-		vertNormal = mesh.Normals[idx]
-		growVec = vertNormal.Multiply(vertNormal,growLength)
-		newLoc = rs.VectorAdd(vert,growVec)
-		normalArrow = rs.AddLine(vert,newLoc)
-		#rs.CurveArrows(normalArrow,2)
-		
-		mesh.Vertices.SetVertex(idx,newLoc.X,newLoc.Y,newLoc.Z)
-		return newLoc.Z
-		#scriptcontext.doc.Objects.Replace(objRef, mesh)
 
-	def assignGrowIdxs(self,idxCenter,gKernel,centerVerts):
+
+	def getGrowData(self,gKernel,centerVerts):
 		mesh = self.mesh
-		#cutoffDist = gKernel.cutoffDist
 		stepSize = gKernel.stepSize
 		kernelLen = len(gKernel.gaussKernel)
 
-		tVertIdxRoot = mesh.TopologyVertices.TopologyVertexIndex(idxCenter)
-		conVertsIdx = mesh.Vertices.GetConnectedVertices(idxCenter)
+		#tVertIdxRoot = mesh.TopologyVertices.TopologyVertexIndex(idxCenter)
+		#conVertsIdx = mesh.Vertices.GetConnectedVertices(idxCenter)
 		growVerts = []
 
 		def lenBetweenTVerts(tVertIdx1,tVertIdx2,mesh):
@@ -222,23 +209,41 @@ class Coral:
 
 		centerColor = System.Drawing.Color.FromArgb(164,223,45)
 
-		for i in range(conVertsIdx.Length):
-			idx = conVertsIdx[i]
-			if(idx != idxCenter and idx not in centerVerts):
-				tVertIdx = mesh.TopologyVertices.TopologyVertexIndex(idx)
-				dist = lenBetweenTVerts(tVertIdxRoot,tVertIdx,mesh)
-				lookUpIdx = int(round(dist/stepSize))
-				#distStr = "d:%1.2f,i:%d"%(dist,lookUpIdx)
-				#rs.AddTextDot(distStr, mesh.Vertices[idx])
-				if(lookUpIdx<kernelLen):
-					growVerts.append([idx,lookUpIdx])
-			else:
-				#mesh.VertexColors.SetColor(idx,centerColor)
-				growVerts.append([idx,0])
+		for idxCenter in centerVerts:
+			tVertIdxRoot = mesh.TopologyVertices.TopologyVertexIndex(idxCenter)
+			conVertsIdx = mesh.Vertices.GetConnectedVertices(idxCenter)
 
-		
+			for i in range(conVertsIdx.Length):
+				idxN = conVertsIdx[i]
+				if(idxN != idxCenter):
+					tVertIdx = mesh.TopologyVertices.TopologyVertexIndex(idxN)
+					dist = lenBetweenTVerts(tVertIdxRoot,tVertIdx,mesh)
+					lookUpIdx = int(round(dist/stepSize))
+					
+					#distStr = "d:%1.2f,i:%d"%(dist,lookUpIdx)
+					#rs.AddTextDot(distStr, mesh.Vertices[idx])
+					if(lookUpIdx<kernelLen):
+						growLen = gKernel.gaussKernel[lookUpIdx]
+						growVerts.append([idxN,growLen])
+				elif(idxN == idxCenter):
+					#mesh.VertexColors.SetColor(idx,centerColor)
+					growVerts.append([idxCenter,gKernel.maxGrowLen])
 
 		return growVerts
+
+	def grow(self,growVerts):
+		mesh = self.mesh
+		for i in range(len(growVerts)):
+			vertIdx = growVerts[i][0]
+			growLen = growVerts[i][1]
+
+			vert = mesh.Vertices[vertIdx]
+			vertNormal = mesh.Normals[vertIdx]
+			growVec = vertNormal.Multiply(vertNormal,growLen)
+			newLoc = Rhino.Geometry.Point3d.Add(vert,growVec)
+						
+
+			mesh.Vertices.SetVertex(vertIdx,newLoc)
 
 	def colorVerts(self,growVerts,gKernel):
 		meshID = self.objRef.ObjectId
@@ -274,27 +279,7 @@ class Coral:
 
 
 		rs.MeshVertexColors( meshID, colors )
-
-	def growAll(self,growVerts,gKernel):
-		mesh = self.mesh
-
-		for i in range(len(growVerts)):
-			vertIdx = growVerts[i][0]
-			kernelIdx = growVerts[i][1]
-
-			vert = mesh.Vertices[vertIdx]
-			vertNormal = mesh.Normals[vertIdx]
-			growLen = gKernel.gaussKernel[kernelIdx]
-			growVec = vertNormal.Multiply(vertNormal,growLen)
-			newLoc = rs.VectorAdd(vert,growVec)
-			
-
-			mesh.Vertices.SetVertex(vertIdx,newLoc.X,newLoc.Y,newLoc.Z)
-
-			#mesh.Normals.ComputeNormals()
-			#mesh.Normals.UnitizeNormals()
 	
-
 	def collapseShortEdges(self):
 		mesh = self.mesh
 		minEdgeLen = self.minEdgeLen
@@ -326,6 +311,7 @@ class Coral:
 				mesh.TopologyEdges.SplitEdge(i,.5) 
 
 	def subdivideLongNeighbors(self,idx,maxEdgeLength):
+		"""OLD CODE"""
 		mesh = self.mesh
 		#minLength = lengthRange[0]
 		#maxLength = lengthRange[1]
@@ -465,15 +451,17 @@ class World:
 	lineIDs = None
 
 	def __init__(self,mesh):
-		#self.inputBoxID = inputBoxRef.ObjectId
-		#rs.HideObject(self.inputBoxID)
-	
-		#self.boundBoxBetter = inputBoxRef.Surface().GetBoundingBox(True)
+			
 		self.boundBoxBetter = mesh.GetBoundingBox(True)
+		minZ = self.boundBoxBetter.Min.Z
+		minX = self.boundBoxBetter.Min.X
+		minY = self.boundBoxBetter.Min.Y
+		newMinPnt = Rhino.Geometry.Point3d(minX,minY,minZ-.01)
+		self.boundBoxBetter.Min = newMinPnt
 		#scriptcontext.doc.Objects.AddBrep(Rhino.Geometry.Box(self.boundBoxBetter).ToBrep())
 
 		box = Rhino.Geometry.Box(self.boundBoxBetter)
-	
+		
 		self.boxBrepID = scriptcontext.doc.Objects.AddBrep(box.ToBrep())
 		#scriptcontext.doc.Objects.Hide(self.boxBrepID,True)
 		self.lineIDs = []
