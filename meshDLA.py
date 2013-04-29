@@ -30,7 +30,7 @@ def meshDLA_MAIN():
 	pRadius = .3
 	speed = .05
 	nParticles = 25
-	timeSteps = 10000
+	timeSteps = 100
 	ratioMaxMin = .33
 	thresMult = 1.3
 	peakInclination = (.68)*math.pi
@@ -39,17 +39,19 @@ def meshDLA_MAIN():
 	minGrowLen = .001
 	cutoffDist = 1
 	tsSave = 50
+	showParticles = False
+	showWorld = False
 
 
 	threshDist = pRadius*1.6
 
 	"""INITIALIZE WORLD, CORAL"""
 	world = World(mesh)
-	world.hide()
+	if not showWorld: world.hide()
 	coral = Coral(objRef,mesh,ratioMaxMin)
 	world.resize(coral,threshDist)
 	world.getSpawnPlane()
-	#world.reDraw()
+	world.reDraw()
 
 	print "INPUT PARAMS________________________"
 	print "pRadius = %1.2fin." % pRadius 
@@ -91,8 +93,8 @@ def meshDLA_MAIN():
 		# 	coral.saveCopy()
 		# 	ts = 0
 
-		#time.sleep(0.1)
-		#Rhino.RhinoApp.Wait()
+		time.sleep(0.3)
+		Rhino.RhinoApp.Wait()
 		scriptcontext.escape_test()
 
 		"""MOVE PARTICLES"""
@@ -100,8 +102,7 @@ def meshDLA_MAIN():
 			p = particles[i]
 			#boundChecks occur within moveParticle()
 			p.moveParticle(speed,peakInclination,world)
-			#p.clearParticle()
-			#p.drawParticle(i)
+			if showParticles: p.clearParticle(), p.drawParticle(i)
 
 		"""SEARCH FOR INTERSECTIONS"""		
 		centerVerts = coral.verticesThatAte(world,particles)
@@ -110,9 +111,8 @@ def meshDLA_MAIN():
 		growVerts = []
 		for centerIdx in centerVerts:
 			growVerts = growVerts + coral.assignGrowIdxs(centerIdx,gKernel,centerVerts)
-
-		maxZ = coral.growAll(growVerts,gKernel)
-		if(maxZ >highestPoint): highestPoint = maxZ
+		
+		maxZ = coral.growAll(growVerts,gKernel) 
 
 		"""SUBDIVIDE LONG EDGES"""
 		coral.subdivideLongEdges()
@@ -123,13 +123,17 @@ def meshDLA_MAIN():
 		coral.mesh.Weld(math.pi)
 		
 
-		"""UPDATE CORAL AND BOUNDBOX """
-		coral.reDraw()		
+		"""UPDATE CORAL AND WORLD """
+		coral.reDraw()
+
+		
+		coral.colorVerts(growVerts,gKernel)
+
 		world.resize(coral,threshDist)
 		world.getSpawnPlane()
-		#world.reDraw()
+		if showWorld: world.reDraw()
 		
-
+	rs.AddSphere((0,0,0),.3)
 	#displayGrowNormals(mesh,growLength)
 	#..coral.displayLineage()
 
@@ -188,7 +192,6 @@ class Coral:
 
 		return sData.vertices
 
-
 	def growVertice(self,idx,growLength):
 		mesh = self.mesh
 		vert = mesh.Vertices[idx]
@@ -237,24 +240,60 @@ class Coral:
 
 		return growVerts
 
+	def colorVerts(self,growVerts,gKernel):
+		meshID = self.objRef.ObjectId
+
+		gaussMax = gKernel.maxGrowLen
+		gaussMin = gKernel.minGrowLen
+
+		rMax = 44
+		gMax = 255
+		bMax = 50
+
+		colors = [None]*self.mesh.Vertices.Count
+		for i in range(len(colors)): 
+			colors[i] = [100,100,100]
+
+		if self.mesh.Vertices.Count != rs.MeshVertexCount(meshID):
+			print "ERROR: mesh.vertices.Count != rs.meshVertesCount!"
+		if growVerts:
+			for i in range(len(growVerts)):
+				vertIdx = growVerts[i][0]
+				kernelIdx = growVerts[i][1]
+				growLen = gKernel.gaussKernel[kernelIdx]
+				ratio = (growLen-gaussMin)/(gaussMax-gaussMin)
+				if(ratio >1):
+					print "ratio: %1.2f" % ratio
+
+				r = ratio*rMax
+				g = ratio*gMax
+				b = ratio*bMax
+
+				colors[i] = [r,g,b]
+
+
+
+		rs.MeshVertexColors( meshID, colors )
 
 	def growAll(self,growVerts,gKernel):
 		mesh = self.mesh
-		maxZ = 0
+
 		for i in range(len(growVerts)):
 			vertIdx = growVerts[i][0]
 			kernelIdx = growVerts[i][1]
 
 			vert = mesh.Vertices[vertIdx]
 			vertNormal = mesh.Normals[vertIdx]
-			growLen =  gKernel.gaussKernel[kernelIdx]
+			growLen = gKernel.gaussKernel[kernelIdx]
 			growVec = vertNormal.Multiply(vertNormal,growLen)
 			newLoc = rs.VectorAdd(vert,growVec)
-			if(newLoc.Z>maxZ): maxZ = newLoc.Z
+			
 
 			mesh.Vertices.SetVertex(vertIdx,newLoc.X,newLoc.Y,newLoc.Z)
-		return maxZ		
 
+			#mesh.Normals.ComputeNormals()
+			#mesh.Normals.UnitizeNormals()
+	
 
 	def collapseShortEdges(self):
 		mesh = self.mesh
