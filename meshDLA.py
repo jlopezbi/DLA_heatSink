@@ -29,28 +29,27 @@ def meshDLA_MAIN():
 
 	pRadius = .3
 	speed = .05
-	nParticles = 20
-	timeSteps = 100
-	#maxEdgeLength = coral.getAvgEdgeLen()
+	nParticles = 25
+	timeSteps = 10000
 	ratioMaxMin = .33
-	#minEdgeLen = maxEdgeLength*ratioMaxMin
 	thresMult = 1.3
-	peakInclination = (3.0/4.0)*math.pi
+	peakInclination = (.68)*math.pi
 	stepSize = .01
 	maxGrowLen = .06
 	minGrowLen = .001
 	cutoffDist = 1
 	tsSave = 50
 
+
 	threshDist = pRadius*1.6
 
 	"""INITIALIZE WORLD, CORAL"""
 	world = World(mesh)
-	#world.hide()
+	world.hide()
 	coral = Coral(objRef,mesh,ratioMaxMin)
 	world.resize(coral,threshDist)
 	world.getSpawnPlane()
-	world.reDraw()
+	#world.reDraw()
 
 	print "INPUT PARAMS________________________"
 	print "pRadius = %1.2fin." % pRadius 
@@ -81,30 +80,28 @@ def meshDLA_MAIN():
 	for i in range(nParticles):
 		p = Particle(pRadius)
 		p.setToSpawnLoc(world)
-		p.drawParticle(i)
+		#p.drawParticle(i)
 		particles.append(p)
 
 	"""RUN SIMIULATION"""
 	ts = 0 
 	for t in range(timeSteps):
-		ts += 1
-		if(ts>=tsSave):
-			coral.saveCopy()
-			ts = 0
+		# ts += 1
+		# if(ts>=tsSave):
+		# 	coral.saveCopy()
+		# 	ts = 0
+
 		#time.sleep(0.1)
 		#Rhino.RhinoApp.Wait()
 		scriptcontext.escape_test()
 
 		"""MOVE PARTICLES"""
 		for i in range(len(particles)):
-
 			p = particles[i]
+			#boundChecks occur within moveParticle()
 			p.moveParticle(speed,peakInclination,world)
-
-			#if not p.inBounds(world):
-			#	p.setToSpawnLoc(world)
-			p.clearParticle()
-			p.drawParticle(i)
+			#p.clearParticle()
+			#p.drawParticle(i)
 
 		"""SEARCH FOR INTERSECTIONS"""		
 		centerVerts = coral.verticesThatAte(world,particles)
@@ -126,35 +123,19 @@ def meshDLA_MAIN():
 		coral.mesh.Weld(math.pi)
 		
 
-		"""MOVE TOP OF BOUND BOX"""
-		coral.reDraw()
-		# bbox = coral.objRef.Mesh().GetBoundingBox(True)
-		# scriptcontext.doc.Objects.AddBrep(bbox.ToBrep())
-		
+		"""UPDATE CORAL AND BOUNDBOX """
+		coral.reDraw()		
 		world.resize(coral,threshDist)
 		world.getSpawnPlane()
-		world.reDraw()
-
-		"""
-		if(highestPoint>prevHighestPoint):
-			world.moveTop(highestPoint,pRadius,thresMult)
-			#world.reDraw()
-			world.getSpawnPlane()
-		prevHighestPoint = highestPoint
-		"""
-
-		
-
+		#world.reDraw()
 		
 
 	#displayGrowNormals(mesh,growLength)
 	#..coral.displayLineage()
-	for particle in particles:
-		scriptcontext.doc.Objects.Hide(particle.sphereID,True)
-	scriptcontext.doc.Views.Redraw()
 
-
-
+	# for particle in particles:
+	# 	scriptcontext.doc.Objects.Hide(particle.sphereID,True)
+	# scriptcontext.doc.Views.Redraw()
 
 #---------------------------CORAL----------------------------------
 class Coral:
@@ -396,9 +377,7 @@ class Coral:
 			if scriptcontext.doc.Objects.AddMesh(bloop) == System.Guid.Empty:
 				print "addMesh fail: %d" %i
 			#scriptcontext.doc.Objects.AddMesh(bloop)
-	
 #---------------------------GAUSS KERNEL----------------------------
-
 class GKernel:
 	gaussKernel = []
 	def __init__(self,stepSize,maxGrowLen,minGrowLen,cutoffDist):
@@ -439,7 +418,6 @@ class GKernel:
 			x = i*self.stepSize
 			y = self.gaussKernel[i]
 			rs.AddPoint(x,y,0)
-
 #---------------------------WORLD----------------------------------
 class World:
 	spawnXRange = None
@@ -454,19 +432,6 @@ class World:
 		#self.boundBoxBetter = inputBoxRef.Surface().GetBoundingBox(True)
 		self.boundBoxBetter = mesh.GetBoundingBox(True)
 		#scriptcontext.doc.Objects.AddBrep(Rhino.Geometry.Box(self.boundBoxBetter).ToBrep())
-		
-
-		# maxX = self.boundBoxBetter.Max.X + padding
-		# maxY = self.boundBoxBetter.Max.Y + padding
-		# maxZ = self.boundBoxBetter.Max.Z + padding
-		# minX = self.boundBoxBetter.Min.X - padding
-		# minY = self.boundBoxBetter.Min.Y - padding
-		# minZ = self.boundBoxBetter.Min.Z
-
-		# newMax = Rhino.Geometry.Point3d(maxX,maxY,maxZ)
-		# newMin = Rhino.Geometry.Point3d(minX,minY,minZ)
-		# self.boundBoxBetter.Max = newMax
-		# self.boundBoxBetter.Min = newMin
 
 		box = Rhino.Geometry.Box(self.boundBoxBetter)
 	
