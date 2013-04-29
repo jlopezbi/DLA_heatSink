@@ -29,14 +29,15 @@ def meshDLA_MAIN():
 	showParticles = True
 	showWorld = False
 	debugTime = True
+	saveLineage = True
 
-	pRadius = .4
+	pRadius = 1
 	speed = .05 #relate to pRadius and some other len??
 	nParticles = 25
 	if debugTime: 
 		timeSteps = 100
 	else:
-		timeSteps = 4000
+		timeSteps = 5000
 	ratioMaxMin = .33
 	thresMult = 1.3
 	peakInclination = (.6)*math.pi
@@ -44,11 +45,12 @@ def meshDLA_MAIN():
 	maxGrowLen = .06
 	minGrowLen = .001
 	cutoffDist = 1
-	tsSave = 50
+	nSave = 10
+	tsSave = timeSteps/nSave
 	
 
 
-	threshDist = pRadius*1.3
+	threshDist = pRadius
 
 
 	"""INITIALIZE WORLD, CORAL"""
@@ -94,10 +96,10 @@ def meshDLA_MAIN():
 	"""RUN SIMIULATION"""
 	ts = 0 
 	for t in range(timeSteps):
-		# ts += 1
-		# if(ts>=tsSave):
-		# 	coral.saveCopy()
-		# 	ts = 0
+		ts += 1
+		if(ts>=tsSave):
+			if saveLineage: coral.saveToLineage()
+			ts = 0
 
 		#time.sleep(0.3)
 		Rhino.RhinoApp.Wait()
@@ -140,11 +142,12 @@ def meshDLA_MAIN():
 		
 	rs.AddTextDot("done", (0,0,0))
 	#displayGrowNormals(mesh,growLength)
-	#..coral.displayLineage()
+	if saveLineage: coral.displayLineage()
 
-	# for particle in particles:
-	# 	scriptcontext.doc.Objects.Hide(particle.sphereID,True)
-	# scriptcontext.doc.Views.Redraw()
+	if showParticles:
+		for particle in particles:
+			scriptcontext.doc.Objects.Hide(particle.sphereID,True)
+		scriptcontext.doc.Views.Redraw()
 
 #---------------------------CORAL----------------------------------
 class Coral:
@@ -156,11 +159,13 @@ class Coral:
 
 		self.objRef = objRef
 		self.mesh = mesh
+		self.groupIdx = scriptcontext.doc.Groups.Add()
+		if(self.groupIdx == -1): print "lineage group failed to intialize"
 
 		self.avgEdgeLen = self.getAvgEdgeLen()
 		self.maxEdgeLength = self.avgEdgeLen
 		self.minEdgeLen = self.avgEdgeLen*ratioMaxMin
-		
+
 		arrNakedBool = self.mesh.GetNakedEdgePointStatus()
 		self.nakedVerts = []
 		for i in range(arrNakedBool.Length):
@@ -399,13 +404,15 @@ class Coral:
 		self.mesh.Normals.UnitizeNormals()
 		self.mesh.Compact()
 
-	def saveCopy(self):
-		#scriptcontext.doc.Objects.AddMesh(self.mesh)
+	def saveToLineage(self):
 		print "saved copy"
-		self.lineage.append(self.mesh.Duplicate())
+		#scriptcontext.doc.Groups.AddToGroup(self.groupIdx,)
+		self.lineage.append(self.objRef.Mesh().Duplicate())
 
 
 	def displayLineage(self):
+		groupIdx = scriptcontext.doc.Groups.Add()
+
 		bboxMesh = self.mesh.GetBoundingBox(False)
 		spacing = max(bboxMesh.Max.X-bboxMesh.Min.X,bboxMesh.Max.Y-bboxMesh.Min.Y)
 		print "nSaved: %d" % len(self.lineage)
@@ -416,8 +423,11 @@ class Coral:
 			print "type of lineage[%d]:" %i + str(type(bloop))
 			#if(i!=0):
 			bloop.Translate(tVec)
-			if scriptcontext.doc.Objects.AddMesh(bloop) == System.Guid.Empty:
+			meshGuid = scriptcontext.doc.Objects.AddMesh(bloop)
+			if meshGuid == System.Guid.Empty:
 				print "addMesh fail: %d" %i
+			else:
+				scriptcontext.doc.Groups.AddToGroup(groupIdx,meshGuid)
 			#scriptcontext.doc.Objects.AddMesh(bloop)
 #---------------------------GAUSS KERNEL----------------------------
 class GKernel:
