@@ -26,11 +26,17 @@ def meshDLA_MAIN():
 	#scriptcontext.doc.Objects.Hide(boxRef,True)
 	"""
 
+	showParticles = True
+	showWorld = False
+	debugTime = True
 
-	pRadius = .3
-	speed = .05
+	pRadius = .4
+	speed = .05 #relate to pRadius and some other len??
 	nParticles = 25
-	timeSteps = 300
+	if debugTime: 
+		timeSteps = 100
+	else:
+		timeSteps = 4000
 	ratioMaxMin = .33
 	thresMult = 1.3
 	peakInclination = (.6)*math.pi
@@ -39,11 +45,11 @@ def meshDLA_MAIN():
 	minGrowLen = .001
 	cutoffDist = 1
 	tsSave = 50
-	showParticles = True
-	showWorld = False
+	
 
 
-	threshDist = pRadius*1.4
+	threshDist = pRadius*1.3
+
 
 	"""INITIALIZE WORLD, CORAL"""
 	world = World(mesh)
@@ -154,6 +160,13 @@ class Coral:
 		self.avgEdgeLen = self.getAvgEdgeLen()
 		self.maxEdgeLength = self.avgEdgeLen
 		self.minEdgeLen = self.avgEdgeLen*ratioMaxMin
+		
+		arrNakedBool = self.mesh.GetNakedEdgePointStatus()
+		self.nakedVerts = []
+		for i in range(arrNakedBool.Length):
+			if (arrNakedBool[i] == True):
+				self.nakedVerts.append(i)
+		
 
 		self.subdivideLongEdges()
 		self.collapseShortEdges()
@@ -202,6 +215,7 @@ class Coral:
 		#conVertsIdx = mesh.Vertices.GetConnectedVertices(idxCenter)
 		growVerts = []
 
+
 		def lenBetweenTVerts(tVertIdx1,tVertIdx2,mesh):
 			p1 = mesh.TopologyVertices[tVertIdx1]
 			p2 = mesh.TopologyVertices[tVertIdx2]
@@ -215,7 +229,7 @@ class Coral:
 
 			for i in range(conVertsIdx.Length):
 				idxN = conVertsIdx[i]
-				if(idxN != idxCenter):
+				if(idxN != idxCenter and idxN not in centerVerts):
 					tVertIdx = mesh.TopologyVertices.TopologyVertexIndex(idxN)
 					dist = lenBetweenTVerts(tVertIdxRoot,tVertIdx,mesh)
 					lookUpIdx = int(round(dist/stepSize))
@@ -233,17 +247,20 @@ class Coral:
 
 	def grow(self,growVerts):
 		mesh = self.mesh
+		nakedVerts = self.nakedVerts
+
 		for i in range(len(growVerts)):
+
 			vertIdx = growVerts[i][0]
 			growLen = growVerts[i][1]
+			if(vertIdx not in nakedVerts):
+				vert = mesh.Vertices[vertIdx]
+				vertNormal = mesh.Normals[vertIdx]
+				growVec = vertNormal.Multiply(vertNormal,growLen)
+				newLoc = Rhino.Geometry.Point3d.Add(vert,growVec)
+							
 
-			vert = mesh.Vertices[vertIdx]
-			vertNormal = mesh.Normals[vertIdx]
-			growVec = vertNormal.Multiply(vertNormal,growLen)
-			newLoc = Rhino.Geometry.Point3d.Add(vert,growVec)
-						
-
-			mesh.Vertices.SetVertex(vertIdx,newLoc)
+				mesh.Vertices.SetVertex(vertIdx,newLoc)
 
 	def colorVerts(self,growVerts,gKernel):
 		meshID = self.objRef.ObjectId
@@ -453,17 +470,13 @@ class World:
 	def __init__(self,mesh):
 			
 		self.boundBoxBetter = mesh.GetBoundingBox(True)
-		minZ = self.boundBoxBetter.Min.Z
-		minX = self.boundBoxBetter.Min.X
-		minY = self.boundBoxBetter.Min.Y
-		newMinPnt = Rhino.Geometry.Point3d(minX,minY,minZ-.01)
-		self.boundBoxBetter.Min = newMinPnt
+	
 		#scriptcontext.doc.Objects.AddBrep(Rhino.Geometry.Box(self.boundBoxBetter).ToBrep())
 
 		box = Rhino.Geometry.Box(self.boundBoxBetter)
 		
 		self.boxBrepID = scriptcontext.doc.Objects.AddBrep(box.ToBrep())
-		#scriptcontext.doc.Objects.Hide(self.boxBrepID,True)
+
 		self.lineIDs = []
 
 		print "world created"
@@ -519,7 +532,6 @@ class World:
 		self.boundBoxBetter.Max = newWorldMax
 
 
-
 	def checkIntersect(self,mesh):
 		boxBrepID = self.boxBrepID
 		pass
@@ -531,7 +543,6 @@ class World:
 
 	def hide(self):
 		scriptcontext.doc.Objects.Hide(self.boxBrepID,True)
-
 #---------------------------PARTICLE--------------------------------
 class Particle:
 	geom = None
@@ -571,8 +582,6 @@ class Particle:
 
 		self.sphere.Center = pntPos
 		#self.sphere.Translate(vel)
-
-
 	
 
 	def inBounds(self,world):
