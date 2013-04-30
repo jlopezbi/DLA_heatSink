@@ -31,16 +31,18 @@ def meshDLA_MAIN():
 	debugTime = True
 	saveLineage = False
 
-	pRadius = 1
-	stepRatio = 0.2
+	pRadius = .4
+	stepRatio = 0.4
 	speed = pRadius*stepRatio #relate to pRadius and some other len??
 	nParticles = 25
 	if debugTime: 
-		timeSteps = 300
+		timeSteps = 200
 	else:
 		timeSteps = 5000
 	ratioMaxMinEdgeLen = .33
-	thresMult = 1.2
+	thresMult = 1
+	alpha = 2
+	beta = 6
 	gravFactor = 1
 	peakInclination = gravFactor*math.pi
 	gStepSize = .01
@@ -76,6 +78,7 @@ def meshDLA_MAIN():
 			   "\nmaxGrowLen: %.2fin." % maxGrowLen +\
 			   "\nminGrowLen: %.2fin." % minGrowLen +\
 			   "\ncutoffDist: %1.1fin." % cutoffDist +\
+			   "\nbetaDist: a=%d, b=%d" %(alpha,beta) +\
 			   "\nnSave: %d" % nSave
 
 	print "INPUT PARAMS________________________"
@@ -127,7 +130,7 @@ def meshDLA_MAIN():
 		for i in range(len(particles)):
 			p = particles[i]
 			#boundChecks occur within moveParticle()
-			p.moveParticle(speed,peakInclination,world)
+			p.moveParticle(speed,alpha,beta,peakInclination,world)
 			if showParticles: p.clearParticle(), p.drawParticle(i)
 
 		"""SEARCH FOR INTERSECTIONS"""		
@@ -472,8 +475,6 @@ class Coral:
 				if not rs.SetUserText(meshGuid,"params",paramStr,True):
 					print "SetUserText failed"
 
-
-
 #---------------------------GAUSS KERNEL----------------------------
 class GKernel:
 	gaussKernel = []
@@ -611,8 +612,13 @@ class Particle:
 		self.radius = radius
 		self.geom = [0,0] #idx 0 => point, idx 1 => sphere
 
-	def moveParticle(self,speed,peakInclination,world):
-		inclination = random.triangular(0,math.pi+.00001,peakInclination)
+	def moveParticle(self,speed,alpha,beta,peakInclination,world):
+		"""TRIANGULAR DISTRIBUTION"""
+		#inclination = random.triangular(0,math.pi+.00001,peakInclination)
+		"""BETA DISTRIBUTION"""
+		rand = 1-random.betavariate(alpha,beta)
+		inclination = rand*math.pi
+
 		azimuth = random.uniform(0,math.pi*2.0)
 
 		velX = speed*math.sin(azimuth)*math.cos(inclination)
