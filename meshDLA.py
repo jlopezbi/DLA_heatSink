@@ -26,40 +26,57 @@ def meshDLA_MAIN():
 	#scriptcontext.doc.Objects.Hide(boxRef,True)
 	"""
 
-	showParticles = True
+	showParticles = False
 	showWorld = False
-	debugTime = True
+	debugTime = False
 	saveLineage = True
 
-	pRadius = 1
-	speed = .05 #relate to pRadius and some other len??
+	pRadius = .5
+	stepRatio = 0.5
+	speed = pRadius*stepRatio #relate to pRadius and some other len??
 	nParticles = 25
 	if debugTime: 
-		timeSteps = 100
+		timeSteps = 50
 	else:
 		timeSteps = 5000
-	ratioMaxMin = .33
-	thresMult = 1.3
-	peakInclination = (.6)*math.pi
-	stepSize = .01
+	ratioMaxMinEdgeLen = .33
+	thresMult = 1
+	gravFactor = .6
+	peakInclination = gravFactor*math.pi
+	gStepSize = .01
 	maxGrowLen = .06
 	minGrowLen = .001
 	cutoffDist = 1
 	nSave = 10
 	tsSave = timeSteps/nSave
 	
+	threshDist = pRadius*thresMult
 
-
-	threshDist = pRadius
+	
 
 
 	"""INITIALIZE WORLD, CORAL"""
 	world = World(mesh)
 	if not showWorld: world.hide()
-	coral = Coral(objRef,mesh,ratioMaxMin)
+	coral = Coral(objRef,mesh,ratioMaxMinEdgeLen)
 	world.resize(coral,threshDist)
 	world.getSpawnPlane()
 	world.reDraw()
+	"""save param string"""
+	paramStr = "\nPARAMS_______________"+\
+			   "\npRadius: %1.2fin." % pRadius +\
+			   "\nstepRatio: %1.2f"%stepRatio +\
+			   "\nnParticles: %d" % nParticles +\
+			   "\ntimeSteps: %d" % timeSteps +\
+			   "\nmaxEdgeLen: %1.2f" % coral.maxEdgeLength +\
+			   "\nminEdgeLen: %1.2f" % coral.minEdgeLen +\
+			   " (max/minEdgeLen: %.2f)" % ratioMaxMinEdgeLen +\
+			   "\nthreshMult: %1.1f" % thresMult +\
+			   "\ngravFactor: %.2f" % gravFactor +\
+			   "\nmaxGrowLen: %.2fin." % maxGrowLen +\
+			   "\nminGrowLen: %.2fin." % minGrowLen +\
+			   "\ncutoffDist: %1.1fin." % cutoffDist +\
+			   "\nnSave: %d" % nSave
 
 	print "INPUT PARAMS________________________"
 	print "pRadius = %1.2fin." % pRadius 
@@ -76,9 +93,10 @@ def meshDLA_MAIN():
 	print "minEdgeLen = %0.2f in." % coral.minEdgeLen
 	print "thresMult = " + str(thresMult)
 	print "____________________________________"
+	
 
 	
-	gKernel = GKernel(stepSize,maxGrowLen,minGrowLen,cutoffDist)
+	gKernel = GKernel(gStepSize,maxGrowLen,minGrowLen,cutoffDist)
 	#gKernel.plot()
 
 	particles = []
@@ -98,7 +116,7 @@ def meshDLA_MAIN():
 	for t in range(timeSteps):
 		ts += 1
 		if(ts>=tsSave):
-			if saveLineage: coral.saveToLineage()
+			if saveLineage: coral.saveToLineage(t)
 			ts = 0
 
 		#time.sleep(0.3)
@@ -140,9 +158,9 @@ def meshDLA_MAIN():
 		world.getSpawnPlane()
 		if showWorld: world.reDraw()
 		
-	rs.AddTextDot("done", (0,0,0))
+	
 	#displayGrowNormals(mesh,growLength)
-	if saveLineage: coral.displayLineage()
+	if saveLineage: coral.packLineage(paramStr)
 
 	if showParticles:
 		for particle in particles:
@@ -213,7 +231,7 @@ class Coral:
 
 	def getGrowData(self,gKernel,centerVerts):
 		mesh = self.mesh
-		stepSize = gKernel.stepSize
+		gStepSize = gKernel.gStepSize
 		kernelLen = len(gKernel.gaussKernel)
 
 		#tVertIdxRoot = mesh.TopologyVertices.TopologyVertexIndex(idxCenter)
@@ -237,7 +255,7 @@ class Coral:
 				if(idxN != idxCenter and idxN not in centerVerts):
 					tVertIdx = mesh.TopologyVertices.TopologyVertexIndex(idxN)
 					dist = lenBetweenTVerts(tVertIdxRoot,tVertIdx,mesh)
-					lookUpIdx = int(round(dist/stepSize))
+					lookUpIdx = int(round(dist/gStepSize))
 					
 					#distStr = "d:%1.2f,i:%d"%(dist,lookUpIdx)
 					#rs.AddTextDot(distStr, mesh.Vertices[idx])
@@ -404,13 +422,14 @@ class Coral:
 		self.mesh.Normals.UnitizeNormals()
 		self.mesh.Compact()
 
-	def saveToLineage(self):
-		print "saved copy"
+	def saveToLineage(self,ts):
+		print "saved copy at timeStep: %d" %ts
 		#scriptcontext.doc.Groups.AddToGroup(self.groupIdx,)
 		self.lineage.append(self.objRef.Mesh().Duplicate())
 
 
 	def displayLineage(self):
+		"""OLD CODE"""
 		groupIdx = scriptcontext.doc.Groups.Add()
 
 		bboxMesh = self.mesh.GetBoundingBox(False)
@@ -429,11 +448,37 @@ class Coral:
 			else:
 				scriptcontext.doc.Groups.AddToGroup(groupIdx,meshGuid)
 			#scriptcontext.doc.Objects.AddMesh(bloop)
+
+	def packLineage(self,paramStr):
+		groupIdx = scriptcontext.doc.Groups.Add()
+
+		bboxMesh = self.mesh.GetBoundingBox(False)
+		spacingVec = Rhino.Geometry.Vector3d(0,0,0)
+		for i, mesh in enumerate(self.lineage):
+			mesh.Translate(spacingVec)
+			meshGuid = scriptcontext.doc.Objects.AddMesh(mesh)
+			if meshGuid == System.Guid.Empty:
+				print "addMesh failed: %d" %i
+			else:
+				scriptcontext.doc.Groups.AddToGroup(groupIdx,meshGuid)
+			if(i!= len(self.lineage)-1):
+				bboxCurr = mesh.GetBoundingBox(True)
+				bboxNext = self.lineage[i+1].GetBoundingBox(True)
+				bboxCurrLen = bboxCurr.Max.Y-bboxCurr.Min.Y
+				bboxNextLen = bboxNext.Max.Y-bboxNext.Min.Y
+
+				spacingVec.Y += (bboxCurrLen+bboxNextLen)/2.0+.000
+			else:
+				if not rs.SetUserText(meshGuid,"params",paramStr,True):
+					print "SetUserText failed"
+
+
+
 #---------------------------GAUSS KERNEL----------------------------
 class GKernel:
 	gaussKernel = []
-	def __init__(self,stepSize,maxGrowLen,minGrowLen,cutoffDist):
-		self.stepSize = stepSize
+	def __init__(self,gStepSize,maxGrowLen,minGrowLen,cutoffDist):
+		self.gStepSize = gStepSize
 		self.maxGrowLen = maxGrowLen
 		self.minGrowLen = minGrowLen
 		self.cutoffDist = cutoffDist
@@ -441,7 +486,7 @@ class GKernel:
 
 
 	def createGaussKernel(self):
-		stepSize = self.stepSize
+		gStepSize = self.gStepSize
 		maxGrowLen = self.maxGrowLen
 		minGrowLen = self.minGrowLen
 		cutoffDist = self.cutoffDist
@@ -462,12 +507,12 @@ class GKernel:
 			y = gaussFunc(x,a,b,c)
 			gaussKernel.append(y)
 
-			x +=stepSize
+			x +=gStepSize
 		return gaussKernel
 
 	def plot(self):
 		for i in range(len(self.gaussKernel)):
-			x = i*self.stepSize
+			x = i*self.gStepSize
 			y = self.gaussKernel[i]
 			rs.AddPoint(x,y,0)
 #---------------------------WORLD----------------------------------
