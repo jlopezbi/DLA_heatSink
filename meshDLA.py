@@ -26,22 +26,22 @@ def meshDLA_MAIN():
 	#scriptcontext.doc.Objects.Hide(boxRef,True)
 	"""
 
-	showParticles = False
+	showParticles = True
 	showWorld = False
-	debugTime = False
-	saveLineage = True
+	debugTime = True
+	saveLineage = False
 
-	pRadius = .5
-	stepRatio = 0.5
+	pRadius = 1
+	stepRatio = 0.2
 	speed = pRadius*stepRatio #relate to pRadius and some other len??
 	nParticles = 25
 	if debugTime: 
-		timeSteps = 50
+		timeSteps = 300
 	else:
 		timeSteps = 5000
 	ratioMaxMinEdgeLen = .33
-	thresMult = 1
-	gravFactor = .6
+	thresMult = 1.2
+	gravFactor = 1
 	peakInclination = gravFactor*math.pi
 	gStepSize = .01
 	maxGrowLen = .06
@@ -612,7 +612,7 @@ class Particle:
 		self.geom = [0,0] #idx 0 => point, idx 1 => sphere
 
 	def moveParticle(self,speed,peakInclination,world):
-		inclination = random.triangular(0,peakInclination,math.pi)
+		inclination = random.triangular(0,math.pi+.00001,peakInclination)
 		azimuth = random.uniform(0,math.pi*2.0)
 
 		velX = speed*math.sin(azimuth)*math.cos(inclination)
