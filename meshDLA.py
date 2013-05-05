@@ -26,21 +26,27 @@ def meshDLA_MAIN():
 	#scriptcontext.doc.Objects.Hide(boxRef,True)
 	"""
 
-	showParticles = True
-	showWorld = False
-	debugTime = True
-	saveLineage = False
+	areaMassProps = Rhino.Geometry.AreaMassProperties.Compute(mesh)
+	centroid = areaMassProps.Centroid
+	centroid.Z += 2.3
+	rs.ViewTarget(view=None,target=centroid)
 
-	pRadius = .4
-	stepRatio = 0.4
+	showParticles = False
+	showWorld = False
+	debugTime = False
+	saveLineage = False
+	spin = True
+
+	pRadius = .2
+	stepRatio = 0.5
 	speed = pRadius*stepRatio #relate to pRadius and some other len??
 	nParticles = 25
 	if debugTime: 
-		timeSteps = 200
+		timeSteps = 30
 	else:
-		timeSteps = 5000
+		timeSteps = 2000
 	ratioMaxMinEdgeLen = .33
-	thresMult = 1
+	thresMult = 1.1
 	alpha = 2
 	beta = 6
 	gravFactor = 1
@@ -74,12 +80,13 @@ def meshDLA_MAIN():
 			   "\nminEdgeLen: %1.2f" % coral.minEdgeLen +\
 			   " (max/minEdgeLen: %.2f)" % ratioMaxMinEdgeLen +\
 			   "\nthreshMult: %1.1f" % thresMult +\
-			   "\ngravFactor: %.2f" % gravFactor +\
 			   "\nmaxGrowLen: %.2fin." % maxGrowLen +\
 			   "\nminGrowLen: %.2fin." % minGrowLen +\
 			   "\ncutoffDist: %1.1fin." % cutoffDist +\
-			   "\nbetaDist: a=%d, b=%d" %(alpha,beta) +\
+			   "\nused TrianglularDist" +\
+			   "\ngravFactor: %.2f" % gravFactor +\
 			   "\nnSave: %d" % nSave
+	#"\nbetaDist: a=%d, b=%d" %(alpha,beta) +\
 
 	print "INPUT PARAMS________________________"
 	print "pRadius = %1.2fin." % pRadius 
@@ -117,6 +124,8 @@ def meshDLA_MAIN():
 	"""RUN SIMIULATION"""
 	ts = 0 
 	for t in range(timeSteps):
+		if spin:
+			rs.RotateView(angle = 1.0)
 		ts += 1
 		if(ts>=tsSave):
 			if saveLineage: coral.saveToLineage(t)
@@ -149,6 +158,7 @@ def meshDLA_MAIN():
 		"""UPDATE MESH"""
 		coral.updateNormals()
 		coral.mesh.Weld(math.pi)
+		coral.setNakedVerts()
 		
 
 		"""UPDATE CORAL AND WORLD """
@@ -165,10 +175,12 @@ def meshDLA_MAIN():
 	#displayGrowNormals(mesh,growLength)
 	if saveLineage: coral.packLineage(paramStr)
 
-	if showParticles:
-		for particle in particles:
-			scriptcontext.doc.Objects.Hide(particle.sphereID,True)
-		scriptcontext.doc.Views.Redraw()
+
+	# if not showParticles:
+	# 	for particle in particles:
+	# 		#rs.AddPolyline(particle.pnts)
+	# 		scriptcontext.doc.Objects.Hide(particle.sphereID,True)
+		#scriptcontext.doc.Views.Redraw()
 
 #---------------------------CORAL----------------------------------
 class Coral:
@@ -188,10 +200,10 @@ class Coral:
 		self.minEdgeLen = self.avgEdgeLen*ratioMaxMin
 
 		arrNakedBool = self.mesh.GetNakedEdgePointStatus()
-		self.nakedVerts = []
+		self.nakedVerts = set()
 		for i in range(arrNakedBool.Length):
 			if (arrNakedBool[i] == True):
-				self.nakedVerts.append(i)
+				self.nakedVerts.add(i)
 		
 
 		self.subdivideLongEdges()
@@ -199,6 +211,12 @@ class Coral:
 
 		self.lineage = []
 		self.lineage.append(self.mesh.Duplicate())
+
+	def setNakedVerts(self):
+		arrNakedBool = self.mesh.GetNakedEdgePointStatus()
+		for i in range(arrNakedBool.Length):
+			if (arrNakedBool[i] == True):
+				self.nakedVerts.add(i)
 
 	def verticesThatAte(self, world, particles):
 		mesh = self.mesh
@@ -512,10 +530,13 @@ class GKernel:
 		return gaussKernel
 
 	def plot(self):
+		points = []
 		for i in range(len(self.gaussKernel)):
 			x = i*self.gStepSize
 			y = self.gaussKernel[i]
-			rs.AddPoint(x,y,0)
+			points.append([x,y,0])
+			#rs.AddPoint(x,y,0)
+		rs.AddPolyline(points)
 #---------------------------WORLD----------------------------------
 class World:
 	spawnXRange = None
@@ -610,14 +631,18 @@ class Particle:
 		point = Rhino.Geometry.Point3d(0,0,0)
 		self.sphere = Rhino.Geometry.Sphere(point,radius)
 		self.radius = radius
+		self.pnts = []
 		self.geom = [0,0] #idx 0 => point, idx 1 => sphere
 
 	def moveParticle(self,speed,alpha,beta,peakInclination,world):
 		"""TRIANGULAR DISTRIBUTION"""
-		#inclination = random.triangular(0,math.pi+.00001,peakInclination)
+		inclination = random.triangular(0,math.pi+.00001,peakInclination)
+
 		"""BETA DISTRIBUTION"""
+		"""
 		rand = 1-random.betavariate(alpha,beta)
 		inclination = rand*math.pi
+		"""
 
 		azimuth = random.uniform(0,math.pi*2.0)
 
@@ -641,6 +666,7 @@ class Particle:
 		elif(pntPos.Y>world.boundBoxBetter.Max.Y):
 			pntPos.Y = world.boundBoxBetter.Min.Y
 
+		self.pnts.append(self.sphere.Center)
 		self.sphere.Center = pntPos
 		#self.sphere.Translate(vel)
 	
