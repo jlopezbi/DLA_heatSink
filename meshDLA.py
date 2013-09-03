@@ -31,22 +31,22 @@ def meshDLA_MAIN():
 	centroid.Z += 2.3
 	rs.ViewTarget(view=None,target=centroid)
 
-	showParticles = False
+	showParticles = True
 	showWorld = False
 	debugTime = False
 	saveLineage = False
-	spin = True
+	spin = False
 
 	pRadius = .2
 	stepRatio = 0.5
 	speed = pRadius*stepRatio #relate to pRadius and some other len??
 	nParticles = 25
 	if debugTime: 
-		timeSteps = 30
+		timeSteps = 100
 	else:
-		timeSteps = 2000
+		timeSteps = 2500
 	ratioMaxMinEdgeLen = .33
-	thresMult = 1.1
+	thresMult = 5
 	alpha = 2
 	beta = 6
 	gravFactor = 1
@@ -128,6 +128,7 @@ def meshDLA_MAIN():
 			rs.RotateView(angle = 1.0)
 		ts += 1
 		if(ts>=tsSave):
+			#print "time:%d"%timeSteps
 			if saveLineage: coral.saveToLineage(t)
 			ts = 0
 
@@ -174,6 +175,8 @@ def meshDLA_MAIN():
 	
 	#displayGrowNormals(mesh,growLength)
 	if saveLineage: coral.packLineage(paramStr)
+	if not rs.SetUserText(coral.objRef.ObjectId,"params",paramStr,True):
+					print "SetUserText failed"
 
 
 	# if not showParticles:
