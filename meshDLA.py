@@ -44,7 +44,7 @@ def meshDLA_MAIN():
 	if debugTime: 
 		timeSteps = 100
 	else:
-		timeSteps = 2500
+		timeSteps = 600
 	ratioMaxMinEdgeLen = .33
 	thresMult = 5
 	alpha = 2
