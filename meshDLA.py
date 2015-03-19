@@ -8,10 +8,13 @@ import Rhino
 import scriptcontext
 import System.Guid
 import System.Drawing
-from World import World
+import CParticle
+import CWorld
+World = CWorld.World
+Particle = CParticle.Particle
 
 def meshDLA_MAIN():
-	
+
 	"""GET MESH"""
 	filter = Rhino.DocObjects.ObjectType.Mesh
 	rc, objRef = Rhino.Input.RhinoGet.GetOneObject("select seedMesh",False,filter)
@@ -536,90 +539,6 @@ class GKernel:
 			points.append([x,y,0])
 			#rs.AddPoint(x,y,0)
 		rs.AddPolyline(points)
-#---------------------------WORLD----------------------------------
-"""
-class World:
-	spawnXRange = None
-	spawnYRange = None
-	spawnZ = None
-	lineIDs = None
-
-	def __init__(self,mesh):
-			
-		self.boundBoxBetter = mesh.GetBoundingBox(True)
-	
-		#scriptcontext.doc.Objects.AddBrep(Rhino.Geometry.Box(self.boundBoxBetter).ToBrep())
-
-		box = Rhino.Geometry.Box(self.boundBoxBetter)
-		
-		self.boxBrepID = scriptcontext.doc.Objects.AddBrep(box.ToBrep())
-
-		self.lineIDs = []
-
-		print "world created"
-		print "world.boundBoxBetter type:" + str(type(self.boundBoxBetter))
-
-	
-	def getSpawnPlane(self):
-		xMin = self.boundBoxBetter.Min.X
-		xMax = self.boundBoxBetter.Max.X
-		yMin = self.boundBoxBetter.Min.Y
-		yMax = self.boundBoxBetter.Max.Y
-
-		self.spawnXRange = [xMin,xMax]
-		self.spawnYRange = [yMin,yMax]
-		self.spawnZ = self.boundBoxBetter.Max.Z
-
-	def moveTop(self,highestPoint,pRadius,thresMult):
-		maxX = self.boundBoxBetter.Max.X
-		maxY = self.boundBoxBetter.Max.Y
-		maxZ = self.spawnZ
-
-		dist = maxZ - highestPoint
-		travelZone = pRadius*thresMult
-		if(dist < travelZone):
-			#print "highest point inside threshold area"
-			newMaxZ = highestPoint+travelZone
-			newPnt = Rhino.Geometry.Point3d(maxX,maxY,newMaxZ)
-			self.boundBoxBetter.Max = newPnt
-
-
-	def resize(self,coral,threshDist):
-		mesh = coral.objRef.Mesh() # was not updating bounding box when using coral.mesh
-		bboxCoral = mesh.GetBoundingBox(True)
-		#scriptcontext.doc.Objects.AddBrep(bboxCoral.ToBrep())
-		if not bboxCoral.IsValid:
-			print "bbox mesh not Valid!"
-
-		coralMin = bboxCoral.Min
-		coralMax = bboxCoral.Max
-		worldMin = self.boundBoxBetter.Min
-		worldMax = self.boundBoxBetter.Max
-
-		minOffset = Rhino.Geometry.Vector3d(threshDist,threshDist,0)
-		maxOffset = Rhino.Geometry.Vector3d(threshDist,threshDist,threshDist)
-
-		threshMin = worldMin + minOffset
-		threshMax = worldMax - maxOffset
-		
-		newWorldMin = worldMin + (coralMin-threshMin)
-		newWorldMax = worldMax + (coralMax-threshMax)
-		#print "nwMax:" + str(type(newWorldMax))
-		self.boundBoxBetter.Min = newWorldMin
-		self.boundBoxBetter.Max = newWorldMax
-
-
-	def checkIntersect(self,mesh):
-		boxBrepID = self.boxBrepID
-		pass
-
-
-	def reDraw(self):
-		box = Rhino.Geometry.Box(self.boundBoxBetter)
-		scriptcontext.doc.Objects.Replace(self.boxBrepID, box.ToBrep())
-
-	def hide(self):
-		scriptcontext.doc.Objects.Hide(self.boxBrepID,True)
 
 """
 #---------------------------PARTICLE--------------------------------
@@ -637,14 +556,14 @@ class Particle:
 		self.geom = [0,0] #idx 0 => point, idx 1 => sphere
 
 	def moveParticle(self,speed,alpha,beta,peakInclination,world):
-		"""TRIANGULAR DISTRIBUTION"""
+		"TRIANGULAR DISTRIBUTION""
 		inclination = random.triangular(0,math.pi+.00001,peakInclination)
 
-		"""BETA DISTRIBUTION"""
-		"""
+	""BETA DISTRIBUTION""
+		""
 		rand = 1-random.betavariate(alpha,beta)
 		inclination = rand*math.pi
-		"""
+		""
 
 		azimuth = random.uniform(0,math.pi*2.0)
 
@@ -715,9 +634,11 @@ class Particle:
 	def clearParticle(self):
 		#rs.DeleteObjects(self.geom)
 		return
-
+"""
 
 if __name__=="__main__":
+	reload(CParticle)
+	reload(CWorld)
 	meshDLA_MAIN()
 
 
