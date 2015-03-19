@@ -8,6 +8,7 @@ import Rhino
 import scriptcontext
 import System.Guid
 import System.Drawing
+from World import World
 
 def meshDLA_MAIN():
 	
@@ -42,9 +43,9 @@ def meshDLA_MAIN():
 	speed = pRadius*stepRatio #relate to pRadius and some other len??
 	nParticles = 25
 	if debugTime: 
-		timeSteps = 100
+		timeSteps = 50
 	else:
-		timeSteps = 600
+		timeSteps = 400
 	ratioMaxMinEdgeLen = .33
 	thresMult = 5
 	alpha = 2
@@ -172,7 +173,6 @@ def meshDLA_MAIN():
 		world.getSpawnPlane()
 		if showWorld: world.reDraw()
 		
-	
 	#displayGrowNormals(mesh,growLength)
 	if saveLineage: coral.packLineage(paramStr)
 	if not rs.SetUserText(coral.objRef.ObjectId,"params",paramStr,True):
@@ -250,8 +250,6 @@ class Coral:
 			sData.addedVert = False
 
 		return sData.vertices
-
-
 
 	def getGrowData(self,gKernel,centerVerts):
 		mesh = self.mesh
@@ -421,8 +419,6 @@ class Coral:
 		edgeLine = mesh.TopologyEdges.EdgeLine(edgeIdx)
 		return edgeLine.Length 
 
-
-
 	def displayGrowNormals(self,displayLength):
 		mesh = self.mesh
 		for i in range(mesh.Vertices.Count):
@@ -541,6 +537,7 @@ class GKernel:
 			#rs.AddPoint(x,y,0)
 		rs.AddPolyline(points)
 #---------------------------WORLD----------------------------------
+"""
 class World:
 	spawnXRange = None
 	spawnYRange = None
@@ -623,6 +620,8 @@ class World:
 
 	def hide(self):
 		scriptcontext.doc.Objects.Hide(self.boxBrepID,True)
+
+"""
 #---------------------------PARTICLE--------------------------------
 class Particle:
 	geom = None
@@ -651,7 +650,7 @@ class Particle:
 
 		velX = speed*math.sin(azimuth)*math.cos(inclination)
 		velY = speed*math.sin(azimuth)*math.sin(inclination)
-		velZ = speed*math.cos(inclination)
+		velZ = speed*math.cos(inclination) # <----- whattttt??? this error!?
 		vel = rs.VectorCreate([velX,velY,velZ],[0,0,0])
 
 		#self.posVec  = rs.VectorAdd(self.posVec,vel)
@@ -673,7 +672,6 @@ class Particle:
 		self.sphere.Center = pntPos
 		#self.sphere.Translate(vel)
 	
-
 	def inBounds(self,world):
 		#pnt = self.geom[0]
 		#return rs.IsPointInSurface(world.inputBoxID,pnt)
@@ -704,8 +702,6 @@ class Particle:
 				return stickIdx
 		return stickIdx
 
-
-
 	def drawParticle(self,i):
 		#print "geom[0]:" + str(self.geom[0])
 
@@ -715,7 +711,6 @@ class Particle:
 			scriptcontext.doc.Objects.Delete(self.sphereID,False)
 
 		self.sphereID = scriptcontext.doc.Objects.AddSphere(self.sphere)
-
 
 	def clearParticle(self):
 		#rs.DeleteObjects(self.geom)
