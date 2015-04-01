@@ -1,6 +1,8 @@
-#DLA on a mesh
+#DLA on a mesh.
 #http://wiki.mcneel.com/developer/rhinocommonsamples/closestpoint?s[]=rtree
 #use R-tree to search for points close enough to vertices
+# Josh Lopez-Binder
+# Make a start mesh in rhino, select it, it will grow
 
 import rhinoscriptsyntax as rs
 import random, math, time
@@ -11,7 +13,9 @@ import System.Drawing
 import CParticle
 import CWorld
 import CCoral
+import CGKernel
 
+GKernel = CGKernel.GKernel
 Coral = CCoral.Coral
 World = CWorld.World
 Particle = CParticle.Particle
@@ -44,14 +48,14 @@ def meshDLA_MAIN():
 	saveLineage = False
 	spin = False
 
-	pRadius = .2
+	pRadius = .5
 	stepRatio = 0.5
 	speed = pRadius*stepRatio #relate to pRadius and some other len??
-	nParticles = 25
+	nParticles = 50
 	if debugTime: 
 		timeSteps = 50
 	else:
-		timeSteps = 400
+		timeSteps = 1000
 	ratioMaxMinEdgeLen = .33
 	thresMult = 5
 	alpha = 2
@@ -59,7 +63,7 @@ def meshDLA_MAIN():
 	gravFactor = 1
 	peakInclination = gravFactor*math.pi
 	gStepSize = .01
-	maxGrowLen = .06
+	maxGrowLen = .25
 	minGrowLen = .001
 	cutoffDist = 1
 	nSave = 10
@@ -191,56 +195,13 @@ def meshDLA_MAIN():
 	# 		scriptcontext.doc.Objects.Hide(particle.sphereID,True)
 		#scriptcontext.doc.Views.Redraw()
 
-#---------------------------GAUSS KERNEL----------------------------
-class GKernel:
-	gaussKernel = []
-	def __init__(self,gStepSize,maxGrowLen,minGrowLen,cutoffDist):
-		self.gStepSize = gStepSize
-		self.maxGrowLen = maxGrowLen
-		self.minGrowLen = minGrowLen
-		self.cutoffDist = cutoffDist
-		self.gaussKernel = self.createGaussKernel()
-
-
-	def createGaussKernel(self):
-		gStepSize = self.gStepSize
-		maxGrowLen = self.maxGrowLen
-		minGrowLen = self.minGrowLen
-		cutoffDist = self.cutoffDist
-
-		def gaussFunc(x,a,b,c):
-			return a*math.exp(-((x-b)**2.0)/(2.0*(c**2.0)))
-
-		gaussKernel = []
-
-		a = maxGrowLen
-		b = 0
-		c = math.sqrt(-(cutoffDist**2.0)/math.log(minGrowLen/maxGrowLen))
-
-		x = 0
-		y = maxGrowLen
-		assert(y==gaussFunc(0,a,b,c)), "problems with gaussFunc"
-		while(x<cutoffDist):
-			y = gaussFunc(x,a,b,c)
-			gaussKernel.append(y)
-
-			x +=gStepSize
-		return gaussKernel
-
-	def plot(self):
-		points = []
-		for i in range(len(self.gaussKernel)):
-			x = i*self.gStepSize
-			y = self.gaussKernel[i]
-			points.append([x,y,0])
-			#rs.AddPoint(x,y,0)
-		rs.AddPolyline(points)
 
 
 if __name__=="__main__":
 	reload(CParticle)
 	reload(CWorld)
 	reload(CCoral)
+	reload(CGKernel)
 	meshDLA_MAIN()
 
 
