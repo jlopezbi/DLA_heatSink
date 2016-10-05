@@ -71,6 +71,9 @@ class Particle:
     self.sphere.Center = spawnPnt
 
   def didStick(self,mesh):
+    '''
+    appears to be unused
+    '''
     nVerts = mesh.Vertices.Count
     stickIdx = -1
     for i in range(nVerts):

@@ -12,12 +12,20 @@ class node:
         self.posVec = posVec
         self.parentID = parentID
         self.radius = radius
+        self.n_divisions = 10
         self.geom = []
 
     def dispNodeInfo(self):
-        self.geom.append(rs.AddPoint(self.posVec));
+        self.geom.append(rs.AddPoint(self.posVec))
         #nodeInfoStr = str(self.parentID) + 'r:' + str(self.radius)
         #self.geom.append(rs.AddTextDot(nodeInfoStr,self.posVec))
+
+    def points_along_edge(self,nodes):
+        p1 = self.posVec
+        p2 = nodes[self.parentID].posVec
+        temp_line = rs.AddLine(p1,p2)
+        points = rs.DivideCurve(temp_line,self.n_divisions,create_points=True)
+        rs.DeleteObject(temp_line)
 
     def drawEdge(self,nodes):
         p1 = self.posVec
@@ -42,10 +50,11 @@ class node:
         self.clearGeom()
         self.radius += sFactor
             
-        
         if(self.parentID >= 0):
-            self.drawCircle()
-            self.drawEdge(nodes)          
+            #self.drawCircle()
+            #self.drawEdge(nodes)          
+            #self.points_along_edge(nodes)
+            self.dispNodeInfo()
             parentNode = nodes[self.parentID]
             parentNode.increaseRadius(sFactor,nodes)
         elif(self.parentID == -1):
@@ -53,7 +62,7 @@ class node:
             rootNode.radius += sFactor
             rootNode.clearGeom()
             rootNode.drawCircle()   
-            #rootNode.dispNodeInfo()
+            rootNode.dispNodeInfo()
 
         #recursively strengthen every node from current node to root
 
@@ -63,8 +72,8 @@ def branchingDLA_MAIN():
     nodes = [node([0,0,0],-1,.1)]
     rNodes = [rs.AddPoint(nodes[0].posVec)]
     speed = .8 #rhino units per iteration
-    sRange = [.5,1.5]
-    nThrows = 300
+    sRange = [.1,.5]
+    nThrows = 800
     boundRadius = (sRange[0]+sRange[1])*2
     bGeom = rs.AddCircle([0,0,0],boundRadius)
     sFactor = .5
@@ -75,11 +84,11 @@ def branchingDLA_MAIN():
 
     for i in range(nThrows):
         resizeThreshold = .7
-        stickRange = rand.uniform(sRange[0],sRange[1])
+        #stickRange = rand.uniform(sRange[0],sRange[1])
+        stickRange = 1
         passParams = throwNode(nodes,speed,stickRange,passParams,resizeThreshold)
         
 
-        
 def throwNode(nodes,speed,stickRange,passParams,resizeThreshold):
     boundRadius = passParams[0]
     bGeom = passParams[1]

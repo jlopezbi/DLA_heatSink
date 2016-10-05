@@ -17,7 +17,7 @@ import CGKernel
 
 GKernel = CGKernel.GKernel
 Coral = CCoral.Coral
-World = CWorld.World
+#/bin/bash: s: command not found
 Particle = CParticle.Particle
 
 def meshDLA_MAIN():

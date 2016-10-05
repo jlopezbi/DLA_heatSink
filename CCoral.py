@@ -66,7 +66,10 @@ class Coral:
       sData.addedVert = False
 
     return sData.vertices
-
+  
+  def get_neighbors(self,vertex,nLevels):
+      pass
+      
   def getGrowData(self,gKernel,centerVerts):
     mesh = self.mesh
     gStepSize = gKernel.gStepSize
