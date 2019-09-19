@@ -26,8 +26,8 @@ def visualize_all(neighbors,mesh):
 
 def visualize_a_neighborhood(neighborhood,mesh,color):
     for vert in neighborhood:
-        #geom = show_mesh_vert(vert,mesh)
-        #rs.ObjectColor(geom,color)
+        geom = show_mesh_vert(vert,mesh)
+        rs.ObjectColor(geom,color)
         print vert
         color_a_vert(vert,mesh,color[0],color[1],color[2])
 
@@ -38,7 +38,7 @@ def get_topo_vert(vert,mesh):
     return mesh.TopologyVertices.TopologyVertexIndex(vert)
 
 def show_mesh_vert(vert,mesh):
-    '''note this is a re-write of a mesh method probably found 
+    '''note this is a re-write of a mesh method probably found
     in meshutils in rhinounfolder
     '''
     coordinates = mesh.Vertices[vert]
@@ -49,8 +49,8 @@ def show_mesh_vert(vert,mesh):
 
 def get_neighbor_verts(start_vert,mesh,n_levels):
     '''
-    for a given vertex on a graph, find the n_separation neighbors 
-    (made-up term) for n_levels out. Note this problem has likeley 
+    for a given vertex on a graph, find the n_separation neighbors
+    (made-up term) for n_levels out. Note this problem has likeley
     already been solved! however this solutions is rather simple and works
     '''
     neighbors = []
@@ -73,12 +73,11 @@ def get_neighbor_verts(start_vert,mesh,n_levels):
     return neighbors
 
 if __name__=="__main__":
-    mesh = user_select_mesh() 
-    mesh.VertexColors.CreateMonotoneMesh(Color.FromArgb(0,0,0))
-    color_a_vert(0,mesh,
+    mesh = user_select_mesh()
+    mesh.VertexColors.CreateMonotoneMesh(Color.FromArgb(255,0,255))
+    #color_a_vert(0,mesh,
     start_vert =0
-    n_levels =2 
+    n_levels =3
     neighbors = get_neighbor_verts(start_vert,mesh,n_levels)
     print neighbors
     visualize_all(neighbors,mesh)
-

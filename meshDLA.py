@@ -52,7 +52,7 @@ def meshDLA_MAIN():
 	stepRatio = 0.5
 	speed = pRadius*stepRatio #relate to pRadius and some other len??
 	nParticles = 50
-	if debugTime: 
+	if debugTime:
 		timeSteps = 50
 	else:
 		timeSteps = 1000
@@ -68,14 +68,14 @@ def meshDLA_MAIN():
 	cutoffDist = 1
 	nSave = 10
 	tsSave = timeSteps/nSave
-	
+
 	threshDist = pRadius*thresMult
 
-	
+
 
 
 	"""INITIALIZE WORLD, CORAL"""
-	world = World(mesh)
+	world = CWorld.World(mesh)
 	if not showWorld: world.hide()
 	coral = Coral(objRef,mesh,ratioMaxMinEdgeLen)
 	world.resize(coral,threshDist)
@@ -100,7 +100,7 @@ def meshDLA_MAIN():
 	#"\nbetaDist: a=%d, b=%d" %(alpha,beta) +\
 
 	print "INPUT PARAMS________________________"
-	print "pRadius = %1.2fin." % pRadius 
+	print "pRadius = %1.2fin." % pRadius
 	print "nParticles = " +str(nParticles)
 	peakIncDeg = peakInclination*180.0/math.pi
 	print "peakInclination = %1.1fdeg" % peakIncDeg
@@ -114,9 +114,9 @@ def meshDLA_MAIN():
 	print "minEdgeLen = %0.2f in." % coral.minEdgeLen
 	print "thresMult = " + str(thresMult)
 	print "____________________________________"
-	
 
-	
+
+
 	gKernel = GKernel(gStepSize,maxGrowLen,minGrowLen,cutoffDist)
 	#gKernel.plot()
 
@@ -133,7 +133,7 @@ def meshDLA_MAIN():
 		particles.append(p)
 
 	"""RUN SIMIULATION"""
-	ts = 0 
+	ts = 0
 	for t in range(timeSteps):
 		if spin:
 			rs.RotateView(angle = 1.0)
@@ -154,12 +154,12 @@ def meshDLA_MAIN():
 			p.moveParticle(speed,alpha,beta,peakInclination,world)
 			if showParticles: p.clearParticle(), p.drawParticle(i)
 
-		"""SEARCH FOR INTERSECTIONS"""		
+		"""SEARCH FOR INTERSECTIONS"""
 		centerVerts = coral.verticesThatAte(world,particles)
 
 		"""GROW REGIONS AROUND CENTERVERTS"""
 		growVerts = coral.getGrowData(gKernel,centerVerts)
-		coral.grow(growVerts) 
+		coral.grow(growVerts)
 
 		"""SUBDIVIDE LONG EDGES"""
 		coral.subdivideLongEdges()
@@ -171,18 +171,18 @@ def meshDLA_MAIN():
 		coral.updateNormals()
 		coral.mesh.Weld(math.pi)
 		coral.setNakedVerts()
-		
+
 
 		"""UPDATE CORAL AND WORLD """
 		coral.reDraw()
 
-		
+
 		#coral.colorVerts(growVerts,gKernel)
 
 		world.resize(coral,threshDist)
 		world.getSpawnPlane()
 		if showWorld: world.reDraw()
-		
+
 	#displayGrowNormals(mesh,growLength)
 	if saveLineage: coral.packLineage(paramStr)
 	if not rs.SetUserText(coral.objRef.ObjectId,"params",paramStr,True):
@@ -203,15 +203,3 @@ if __name__=="__main__":
 	reload(CCoral)
 	reload(CGKernel)
 	meshDLA_MAIN()
-
-
-
-
-
-
-
-
-
-
-
-

@@ -23,7 +23,7 @@ class Coral:
     for i in range(arrNakedBool.Length):
       if (arrNakedBool[i] == True):
         self.nakedVerts.add(i)
-    
+
 
     self.subdivideLongEdges()
     self.collapseShortEdges()
@@ -57,7 +57,7 @@ class Coral:
         self.addedVert = False
 
     sData = SearchData()
-        
+
     for particle in particles:
       sphere = particle.sphere
       tree.Search(sphere, SearchCallback, sData)
@@ -66,10 +66,14 @@ class Coral:
       sData.addedVert = False
 
     return sData.vertices
-  
+
   def get_neighbors(self,vertex,nLevels):
+      '''
+      Returns:
+          list[list[int]] where int is vertex index
+      '''
       pass
-      
+
   def getGrowData(self,gKernel,centerVerts):
     mesh = self.mesh
     gStepSize = gKernel.gStepSize
@@ -97,7 +101,7 @@ class Coral:
           tVertIdx = mesh.TopologyVertices.TopologyVertexIndex(idxN)
           dist = lenBetweenTVerts(tVertIdxRoot,tVertIdx,mesh)
           lookUpIdx = int(round(dist/gStepSize))
-          
+
           #distStr = "d:%1.2f,i:%d"%(dist,lookUpIdx)
           #rs.AddTextDot(distStr, mesh.Vertices[idx])
           if(lookUpIdx<kernelLen):
@@ -122,7 +126,7 @@ class Coral:
         vertNormal = mesh.Normals[vertIdx]
         growVec = vertNormal.Multiply(vertNormal,growLen)
         newLoc = Rhino.Geometry.Point3d.Add(vert,growVec)
-              
+
 
         mesh.Vertices.SetVertex(vertIdx,newLoc)
 
@@ -137,7 +141,7 @@ class Coral:
     bMax = 50
 
     colors = [None]*self.mesh.Vertices.Count
-    for i in range(len(colors)): 
+    for i in range(len(colors)):
       colors[i] = [100,100,100]
 
     if self.mesh.Vertices.Count != rs.MeshVertexCount(meshID):
@@ -160,7 +164,7 @@ class Coral:
 
 
     rs.MeshVertexColors( meshID, colors )
-  
+
   def collapseShortEdges(self):
     mesh = self.mesh
     minEdgeLen = self.minEdgeLen
@@ -189,7 +193,7 @@ class Coral:
       p2 = mesh.TopologyVertices[tVerts.J]
       lenEdge =  p1.DistanceTo(p2)
       if(lenEdge >= maxEdgeLength):
-        mesh.TopologyEdges.SplitEdge(i,.5) 
+        mesh.TopologyEdges.SplitEdge(i,.5)
 
   def subdivideLongNeighbors(self,idx,maxEdgeLength):
     """OLD CODE"""
@@ -199,8 +203,8 @@ class Coral:
 
     vert = mesh.Vertices[idx]
     #rs.AddTextDot("v",vert)
-    connectedVertsIdx = mesh.Vertices.GetConnectedVertices(idx) 
-    
+    connectedVertsIdx = mesh.Vertices.GetConnectedVertices(idx)
+
 
     tVertIdx = mesh.TopologyVertices.TopologyVertexIndex(idx)
     tVert = mesh.TopologyVertices[tVertIdx]
@@ -210,7 +214,7 @@ class Coral:
     for neighVertIdx in connectedVertsIdx:
       if(neighVertIdx !=idx):
 
-        
+
         tCenterVertIdx = mesh.TopologyVertices.TopologyVertexIndex(idx)
         tCenterVert = mesh.TopologyVertices[tCenterVertIdx]
 
@@ -236,7 +240,7 @@ class Coral:
   def getLenEdge(self, edgeIdx):
     mesh = self.mesh
     edgeLine = mesh.TopologyEdges.EdgeLine(edgeIdx)
-    return edgeLine.Length 
+    return edgeLine.Length
 
   def displayGrowNormals(self,displayLength):
     mesh = self.mesh
