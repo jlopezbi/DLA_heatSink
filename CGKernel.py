@@ -44,3 +44,13 @@ class GKernel:
       points.append([x,y,0])
       #rs.AddPoint(x,y,0)
     rs.AddPolyline(points)
+
+def test_plot():
+    step_size = .01
+    max_grow_len = .25
+    min_grow_len = .01
+    cutt_off = 1.0
+    kernel = GKernel(step_size, max_grow_len, min_grow_len, cutt_off)
+    kernel.plot()
+
+test_plot()

@@ -52,6 +52,9 @@ def get_neighbor_verts(start_vert,mesh,n_levels):
     for a given vertex on a graph, find the n_separation neighbors
     (made-up term) for n_levels out. Note this problem has likeley
     already been solved! however this solutions is rather simple and works
+
+    Args:
+        start_vert
     Returns:
 
     '''

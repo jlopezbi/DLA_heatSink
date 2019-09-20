@@ -2,6 +2,18 @@ import Rhino
 import scriptcontext
 import System.Guid
 
+def sharing_function(mesh, polyp, neighbor_level):
+    '''computes how much the given polyp should grow by
+    Args:
+        mesh (rhinocommon mesh)
+        polyp (int): vert index in mesh that is to grow
+        neighbor_level (int): level of polyp from polyp-that-ate; acts as proxy for distance
+    '''
+    #TODO: write a linear func of neighbor level to get grow_length for the polyp
+    #get function (or perhaps pass in)
+    #evaluate function to get grow_length
+    pass
+
 class Coral:
   def __init__(self,objRef,mesh,ratioMaxMin):
     mesh.Normals.ComputeNormals()
@@ -114,9 +126,10 @@ class Coral:
       neighbors = get_neighbor_verts(start_vert=idxCenter, mesh=mesh, n_levels=1)
       for i, neighborhood in enumerate(neighbors):
           for vert in neighborhood:
-              #TODO: plot the gaussKernle to make sure this use is correct
-              grow_length = gKernel.gaussKernel[i+1]
+              #TODO: plot the gaussKernel to make sure this use is correct
+              grow_length = sharing_function(mesh, vert, i)
               growVerts.append([vert, grow_length])
+
 
 
       for i in range(conVertsIdx.Length):
