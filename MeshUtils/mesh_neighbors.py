@@ -52,6 +52,8 @@ def get_neighbor_verts(start_vert,mesh,n_levels):
     for a given vertex on a graph, find the n_separation neighbors
     (made-up term) for n_levels out. Note this problem has likeley
     already been solved! however this solutions is rather simple and works
+    Returns:
+
     '''
     neighbors = []
     seen_verts = set([start_vert])
@@ -59,17 +61,22 @@ def get_neighbor_verts(start_vert,mesh,n_levels):
     prev_neighbors = first_neighbors
     neighbors.append(first_neighbors)
     seen_verts.update(first_neighbors)
+
     for i in range(n_levels-1):
         new_neighbors = set([])
+
         for vert in prev_neighbors:
             potential_neighbors = get_vert_neighbors(vert,mesh)
             newely_seen = potential_neighbors.difference(seen_verts)
             new_neighbors.update(newely_seen)
+
         if not new_neighbors:
             return neighbors
+
         neighbors.append(new_neighbors)
         prev_neighbors = new_neighbors
         seen_verts.update(new_neighbors)
+
     return neighbors
 
 if __name__=="__main__":

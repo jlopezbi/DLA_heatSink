@@ -75,6 +75,11 @@ class Coral:
       pass
 
   def getGrowData(self,gKernel,centerVerts):
+    '''
+    Args:
+        gKernel [?]
+        centerVerts (list[int]): verts that 'ate'
+    '''
     mesh = self.mesh
     gStepSize = gKernel.gStepSize
     kernelLen = len(gKernel.gaussKernel)
@@ -93,7 +98,26 @@ class Coral:
 
     for idxCenter in centerVerts:
       tVertIdxRoot = mesh.TopologyVertices.TopologyVertexIndex(idxCenter)
+
+      #first neihbors
       conVertsIdx = mesh.Vertices.GetConnectedVertices(idxCenter)
+
+      #for each neighbor:
+          # compute its distance from the tVertIdxRoot (center vert)
+          # so need to come up with concept of distance for an arbitrary vert.
+            # shortest path across mesh seems valid
+            # even simpler: discrete, based on level of neighbor. breaks down a bit if/when edge
+            # lengths start varying more. but I like doing the simple thing first.
+          # add to growVerts the (vert_idx, growLen)
+
+
+      neighbors = get_neighbor_verts(start_vert=idxCenter, mesh=mesh, n_levels=1)
+      for i, neighborhood in enumerate(neighbors):
+          for vert in neighborhood:
+              #TODO: plot the gaussKernle to make sure this use is correct
+              grow_length = gKernel.gaussKernel[i+1]
+              growVerts.append([vert, grow_length])
+
 
       for i in range(conVertsIdx.Length):
         idxN = conVertsIdx[i]
@@ -107,6 +131,7 @@ class Coral:
           if(lookUpIdx<kernelLen):
             growLen = gKernel.gaussKernel[lookUpIdx]
             growVerts.append([idxN,growLen])
+
         elif(idxN == idxCenter):
           #mesh.VertexColors.SetColor(idx,centerColor)
           growVerts.append([idxCenter,gKernel.maxGrowLen])
