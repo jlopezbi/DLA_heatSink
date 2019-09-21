@@ -5,24 +5,26 @@ import System.Drawing.Color as Color
 # probs should be inmport from meshutils in rhino_unfolder
 
 def user_select_mesh(message="select a mesh"):
-    mesh_guid = rs.GetObject(message,filter=32,preselect=True)
-    return get_geom_from_guid(mesh_guid)
+    mesh_guid = rs.GetObject(message,filter=rs.filter.mesh, preselect=True)
+    return mesh_guid, get_geom_from_guid(mesh_guid)
 
 def get_geom_from_guid(guid):
     obj = scriptcontext.doc.Objects.Find(guid)
     mesh =  obj.Geometry
     return mesh
 
+def reDraw(mesh_guid, mesh):
+    scriptcontext.doc.Objects.Replace(mesh_guid, mesh)
 
 def get_vert_neighbors(vert,mesh):
     return set(list(mesh.Vertices.GetConnectedVertices(vert)))
 
 def visualize_all(neighbors,mesh):
-    shade = 0
-    shade_increment = 255/len(neighbors)
+    shade = 240
+    shade_increment = 240/len(neighbors)
     for neighborhood in neighbors:
         visualize_a_neighborhood(neighborhood,mesh,(shade,shade,shade))
-        shade += shade_increment
+        shade -= shade_increment
 
 def visualize_a_neighborhood(neighborhood,mesh,color):
     for vert in neighborhood:
@@ -32,7 +34,8 @@ def visualize_a_neighborhood(neighborhood,mesh,color):
         color_a_vert(vert,mesh,color[0],color[1],color[2])
 
 def color_a_vert(vert,mesh,r,g,b):
-    mesh.VertexColors.SetColor(vert,255,0,255)
+    mesh.VertexColors.SetColor(vert,r,g,b)
+    return mesh
 
 def get_topo_vert(vert,mesh):
     return mesh.TopologyVertices.TopologyVertexIndex(vert)
@@ -83,11 +86,13 @@ def get_neighbor_verts(start_vert,mesh,n_levels):
     return neighbors
 
 if __name__=="__main__":
-    mesh = user_select_mesh()
-    mesh.VertexColors.CreateMonotoneMesh(Color.FromArgb(255,0,255))
+    mesh_guid, mesh = user_select_mesh()
+    mesh.VertexColors.CreateMonotoneMesh(Color.FromArgb(255,255,255))
     #color_a_vert(0,mesh,
     start_vert =0
-    n_levels =3
+    n_levels =1
+    show_mesh_vert(start_vert,mesh)
     neighbors = get_neighbor_verts(start_vert,mesh,n_levels)
     print neighbors
     visualize_all(neighbors,mesh)
+    reDraw(mesh_guid, mesh)
