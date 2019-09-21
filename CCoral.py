@@ -2,17 +2,8 @@ import Rhino
 import scriptcontext
 import System.Guid
 
-def sharing_function(mesh, polyp, neighbor_level):
-    '''computes how much the given polyp should grow by
-    Args:
-        mesh (rhinocommon mesh)
-        polyp (int): vert index in mesh that is to grow
-        neighbor_level (int): level of polyp from polyp-that-ate; acts as proxy for distance
-    '''
-    #TODO: write a linear func of neighbor level to get grow_length for the polyp
-    #get function (or perhaps pass in)
-    #evaluate function to get grow_length
-    pass
+
+
 
 class Coral:
   def __init__(self,objRef,mesh,ratioMaxMin):
@@ -93,61 +84,18 @@ class Coral:
         centerVerts (list[int]): verts that 'ate'
     '''
     mesh = self.mesh
-    gStepSize = gKernel.gStepSize
-    kernelLen = len(gKernel.gaussKernel)
 
-    #tVertIdxRoot = mesh.TopologyVertices.TopologyVertexIndex(idxCenter)
-    #conVertsIdx = mesh.Vertices.GetConnectedVertices(idxCenter)
     growVerts = []
-
-
-    def lenBetweenTVerts(tVertIdx1,tVertIdx2,mesh):
-      p1 = mesh.TopologyVertices[tVertIdx1]
-      p2 = mesh.TopologyVertices[tVertIdx2]
-      return p1.DistanceTo(p2)
 
     centerColor = System.Drawing.Color.FromArgb(164,223,45)
 
     for idxCenter in centerVerts:
-      tVertIdxRoot = mesh.TopologyVertices.TopologyVertexIndex(idxCenter)
-
-      #first neihbors
-      conVertsIdx = mesh.Vertices.GetConnectedVertices(idxCenter)
-
-      #for each neighbor:
-          # compute its distance from the tVertIdxRoot (center vert)
-          # so need to come up with concept of distance for an arbitrary vert.
-            # shortest path across mesh seems valid
-            # even simpler: discrete, based on level of neighbor. breaks down a bit if/when edge
-            # lengths start varying more. but I like doing the simple thing first.
-          # add to growVerts the (vert_idx, growLen)
-
 
       neighbors = get_neighbor_verts(start_vert=idxCenter, mesh=mesh, n_levels=1)
       for i, neighborhood in enumerate(neighbors):
           for vert in neighborhood:
-              #TODO: plot the gaussKernel to make sure this use is correct
-              grow_length = sharing_function(mesh, vert, i)
-              growVerts.append([vert, grow_length])
-
-
-
-      for i in range(conVertsIdx.Length):
-        idxN = conVertsIdx[i]
-        if(idxN != idxCenter and idxN not in centerVerts):
-          tVertIdx = mesh.TopologyVertices.TopologyVertexIndex(idxN)
-          dist = lenBetweenTVerts(tVertIdxRoot,tVertIdx,mesh)
-          lookUpIdx = int(round(dist/gStepSize))
-
-          #distStr = "d:%1.2f,i:%d"%(dist,lookUpIdx)
-          #rs.AddTextDot(distStr, mesh.Vertices[idx])
-          if(lookUpIdx<kernelLen):
-            growLen = gKernel.gaussKernel[lookUpIdx]
-            growVerts.append([idxN,growLen])
-
-        elif(idxN == idxCenter):
-          #mesh.VertexColors.SetColor(idx,centerColor)
-          growVerts.append([idxCenter,gKernel.maxGrowLen])
+              grow_dist = grow_length(i)
+              growVerts.append([vert, grow_dist])
 
     return growVerts
 
