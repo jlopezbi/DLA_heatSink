@@ -3,15 +3,8 @@ import scriptcontext
 import Rhino
 import System.Drawing.Color as Color
 # probs should be inmport from meshutils in rhino_unfolder
+import utils
 
-def user_select_mesh(message="select a mesh"):
-    mesh_guid = rs.GetObject(message,filter=rs.filter.mesh, preselect=True)
-    return mesh_guid, get_geom_from_guid(mesh_guid)
-
-def get_geom_from_guid(guid):
-    obj = scriptcontext.doc.Objects.Find(guid)
-    mesh =  obj.Geometry
-    return mesh
 
 def reDraw(mesh_guid, mesh):
     scriptcontext.doc.Objects.Replace(mesh_guid, mesh)
@@ -30,8 +23,8 @@ def visualize_a_neighborhood(neighborhood,mesh,color):
     for vert in neighborhood:
         geom = show_mesh_vert(vert,mesh)
         rs.ObjectColor(geom,color)
-        print vert
-        color_a_vert(vert,mesh,color[0],color[1],color[2])
+        #print vert
+        #color_a_vert(vert,mesh,color[0],color[1],color[2])
 
 def color_a_vert(vert,mesh,r,g,b):
     mesh.VertexColors.SetColor(vert,r,g,b)
@@ -85,12 +78,13 @@ def get_neighbor_verts(start_vert,mesh,n_levels):
 
     return neighbors
 
+
 if __name__=="__main__":
     mesh_guid, mesh = user_select_mesh()
     mesh.VertexColors.CreateMonotoneMesh(Color.FromArgb(255,255,255))
     #color_a_vert(0,mesh,
     start_vert =0
-    n_levels =1
+    n_levels =5
     show_mesh_vert(start_vert,mesh)
     neighbors = get_neighbor_verts(start_vert,mesh,n_levels)
     print neighbors
