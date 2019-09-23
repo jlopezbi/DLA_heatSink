@@ -1,7 +1,10 @@
 import Rhino
 import scriptcontext
 import System.Guid
+from MeshUtils import mesh_neighbors as mn
+import growth as gr
 
+NEIGHBOR_LEVELS = 4
 
 
 
@@ -91,10 +94,10 @@ class Coral:
 
     for idxCenter in centerVerts:
 
-      neighbors = get_neighbor_verts(start_vert=idxCenter, mesh=mesh, n_levels=1)
+      neighbors = mn.get_neighbor_verts(start_vert=idxCenter, mesh=mesh, n_levels=NEIGHBOR_LEVELS)
       for i, neighborhood in enumerate(neighbors):
           for vert in neighborhood:
-              grow_dist = grow_length(i)
+              grow_dist = gr.grow_length(i)
               growVerts.append([vert, grow_dist])
 
     return growVerts

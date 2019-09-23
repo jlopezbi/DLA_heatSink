@@ -118,8 +118,7 @@ def meshDLA_MAIN():
 
 
 	gKernel = GKernel(gStepSize,maxGrowLen,minGrowLen,cutoffDist)
-	gKernel.plot()
-        raise Exception('Pausing Here to inspect gKernel plot')
+	#gKernel.plot()
 
 	particles = []
 	growVerts = set()
